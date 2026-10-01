@@ -1,0 +1,79 @@
+## Interface: 120100
+## Title: Coby's Loot Sweeper
+## Version: 0.0.1
+## Author: Cobanyte
+## OptionalDeps: Auctionator, TradeSkillMaster, Scrap
+## Notes: Sell the loot from your old-raid and dungeon runs, and see what is worth auctioning. Everything you already had stays safe.
+## IconTexture: Interface\Icons\INV_Misc_Bag_10
+## AddonCompartmentFunc: CobysLootSweeper_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: CobysLootSweeper_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: CobysLootSweeper_OnAddonCompartmentLeave
+## SavedVariables: COBYS_LOOT_SWEEPER_CONFIG, COBYS_LOOT_SWEEPER_WINDOW_STATE, COBYS_LOOT_SWEEPER_DEBUG_LOG, COBYS_LOOT_SWEEPER_PREFS
+## SavedVariablesPerCharacter: COBYS_LOOT_SWEEPER_CHAR
+
+# Embedded CobySuite Library
+Libs\CobySuite\Source\Core.lua
+Libs\CobySuite\Build.lua
+Libs\CobySuite\Source\EventBus.lua
+Libs\CobySuite\Source\Utilities\Main.lua
+Libs\CobySuite\Source\Chat\Main.lua
+Libs\CobySuite\Source\Slash\Main.lua
+Libs\CobySuite\Source\Config\Main.lua
+Libs\CobySuite\Source\UI\Factories.lua
+Libs\CobySuite\Source\UI\Window.lua
+Libs\CobySuite\Source\UI\SettingsWindow.lua
+Libs\CobySuite\Source\UI\TableHeader.lua
+Libs\CobySuite\Source\UI\Launcher.lua
+Libs\CobySuite\Source\UI\Guide.lua
+Libs\CobySuite\Source\Debug\Logger.lua
+Libs\CobySuite\Source\Debug\Window.lua
+
+# Core
+Source\Core.lua
+Source\EventBus.lua
+
+# Debug
+Source\Debug\Logger.lua
+Source\Debug\Window.lua
+
+# Utilities
+Source\Utilities\Main.lua
+
+# Config
+Source\Config\Main.lua
+
+# Data
+Source\Data\Instances.lua
+Source\Data\Changelog.lua
+
+# Tracking
+Source\Tracking\Ledger.lua
+Source\Tracking\Instance.lua
+Source\Tracking\Bags.lua
+Source\Tracking\Fences.lua
+Source\Tracking\Runs.lua
+Source\Tracking\History.lua
+
+# Sorting
+Source\Sorting\Prefs.lua
+Source\Sorting\Prices.lua
+Source\Sorting\Facts.lua
+Source\Sorting\Rules.lua
+Source\Sorting\Pile.lua
+
+# Selling
+Source\Selling\Seller.lua
+
+# UI
+Source\UI\Overview.lua
+Source\UI\QuickSell.lua
+Source\UI\HistoryView.lua
+Source\UI\StepPanel.lua
+Source\UI\MainWindow.lua
+Source\UI\Docking.lua
+Source\UI\VendorButton.lua
+Source\UI\Guide.lua
+Source\UI\WhatsNew.lua
+Source\UI\Launcher.lua
+Source\UI\UseToken.lua
+Source\Config\Window.lua
