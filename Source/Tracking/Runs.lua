@@ -20,6 +20,8 @@
 --   runs       [id] = { name, kind, startedAt, endedAt } for the active run
 --              and runs that still have items in the pile or away
 --   nextRunId, suppressedMapID
+--   keepsMoved true once the 0.0.1 one-copy Keeps were let go (Prefs: a
+--              Keep now covers every copy of the item and hides it)
 --   diag       counters for the Check Sweep report
 --   history    History.lua's records and totals
 --   reviewedAt when the window last showed (the vendor button's shimmer)
@@ -45,6 +47,13 @@ local seams = {
   Message = function(text) Utilities.Message(text) end,
   Read = function(extra) return Bags.Read(extra) end,
   StillCarried = function(guid) return Bags.StillCarried(guid) end,
+  Announce = function(info) CobysLootSweeper.TrackOffer.Announce(info) end,
+  Locate = function(guid) return Bags.Locate(guid) end,
+  ZoneMap = function() return C_Map.GetBestMapForUnit("player") end,
+  MapName = function(uiMapID)
+    local info = C_Map.GetMapInfo(uiMapID)
+    return info and info.name
+  end,
 }
 Runs._test = { seams = seams }
 
@@ -54,6 +63,9 @@ local preparing = false
 local retryScheduled = false
 local vetoes = 0
 local expect = nil   -- a token used from Loot Sweeper: what it gives joins its run
+-- This visit's offer for current content: the instance, the offer made
+-- (its info, or true once answered) and a "Yes, this time"
+local visit = { mapID = nil, offered = nil, once = nil }
 
 Runs.CONVERSION_WAIT = 10   -- seconds a used token's item may take to arrive
 
@@ -79,6 +91,35 @@ function Runs.InitializeData()
   if type(char.suppressedMapID) ~= "number" then char.suppressedMapID = nil end
   COBYS_LOOT_SWEEPER_CHAR = char
   resyncPending = true
+  Runs.MoveOldKeeps(char)
+end
+
+-- 0.0.1 kept one copy at a time (entry.pref = "keep", listed in Keep). A
+-- Keep now covers the item and hides it, so those copies are let go once
+-- (History: "kept"); a remembered Keep moved into the lists (Prefs).
+function Runs.MoveOldKeeps(char)
+  if char.keepsMoved then return end
+  local changes = { claimed = {}, released = {}, held = {}, pending = {}, away = {} }
+  for _, list in ipairs({ char.ledger.pile, char.ledger.away }) do
+    for guid, entry in pairs(list) do
+      if entry.pref == "keep" then
+        list[guid] = nil
+        changes.released[#changes.released + 1] = { guid = guid, itemID = entry.itemID,
+          units = entry.count + entry.added, why = "kept" }
+      end
+    end
+  end
+  char.keepsMoved = true
+  if #changes.released > 0 then
+    CobysLootSweeper.History.OnChanges(changes, char.ledger, seams.Time())
+    Debug().Log("TRACK", "Let go of %d copies kept one at a time before Keep covered every copy", #changes.released)
+  end
+end
+
+-- Every step that can add to the pile ends here: an item the player keeps
+-- never stays in it (Prefs.Keep)
+local function WithoutKept(char, changes)
+  return Ledger.DropKept(char.ledger, CobysLootSweeper.Prefs.IsKept, changes)
 end
 
 function Runs.Char()
@@ -109,13 +150,52 @@ local function KnownItemIDs(ledger)
   return ids
 end
 
-local function LogChanges(changes)
+Runs.LOG_EACH = 6   -- a list longer than this is one summary line
+
+-- Logs a list of changes as "<verb> <id> x<units> (<why>)" per entry, or as
+-- one line grouped by why when the list is long
+local function LogList(verb, list, whyOf)
   local d = Debug()
-  for _, c in ipairs(changes.claimed) do d.Log("TRACK", "Claimed %s x%d (%s)", tostring(c.itemID), c.units, c.why) end
-  for _, c in ipairs(changes.held) do d.Log("TRACK", "Held %s x%d (%s)", tostring(c.itemID), c.units, c.why) end
-  for _, c in ipairs(changes.released) do d.Log("TRACK", "Released %s x%d (%s)", tostring(c.itemID), c.units, c.why) end
-  for _, c in ipairs(changes.pending) do d.Log("TRACK", "Waiting on container: %s x%d", tostring(c.itemID), c.units) end
-  for _, c in ipairs(changes.away) do d.Log("TRACK", "Away %s x%d (%s)", tostring(c.itemID), c.units, c.why) end
+  if #list <= Runs.LOG_EACH then
+    for _, c in ipairs(list) do d.Log("TRACK", "%s %s x%d (%s)", verb, tostring(c.itemID), c.units, whyOf(c)) end
+    return
+  end
+  local groups, order = {}, {}
+  for _, c in ipairs(list) do
+    local why = whyOf(c)
+    if not groups[why] then groups[why] = {}; order[#order + 1] = why end
+    local g = groups[why]
+    g[#g + 1] = tostring(c.itemID) .. " x" .. tostring(c.units)
+  end
+  for _, why in ipairs(order) do
+    local g = groups[why]
+    d.Log("TRACK", "%s %d stacks (%s): %s", verb, #g, why, table.concat(g, ", "))
+  end
+end
+
+local function Why(c) return tostring(c.why) end
+
+-- An item Loot Sweeper sold, deleted or used leaves under a fence like any
+-- other; the log says which it was (the Molten Core log read "Released
+-- (gone)" for every sale)
+local function ReleaseWhy(c)
+  return c.own and (c.own .. " by Loot Sweeper") or tostring(c.why)
+end
+
+-- Each "gone" release learns what Loot Sweeper itself did to it, for the log
+-- and for Buyback
+local function NoteOwn(changes)
+  for _, c in ipairs(changes.released or {}) do
+    if c.why == "gone" then c.own = CobysLootSweeper.History.TakeOwnOutcome(c.guid) end
+  end
+end
+
+local function LogChanges(changes)
+  LogList("Claimed", changes.claimed, Why)
+  LogList("Held", changes.held, Why)
+  LogList("Released", changes.released, ReleaseWhy)
+  for _, c in ipairs(changes.pending) do Debug().Log("TRACK", "Waiting on container: %s x%d", tostring(c.itemID), c.units) end
+  LogList("Away", changes.away, Why)
 end
 
 -- The changes without the release of a token being used from Loot Sweeper:
@@ -146,6 +226,31 @@ local function MissesCarried(ledger, read)
   return false
 end
 
+-- A fence the game says is gone closes before the read (Task #109); while
+-- one holds a run's arrivals back, the log and Check Sweep name the window
+local function FenceNotes(char)
+  char.diag.fences = char.diag.fences or {}
+  return char.diag.fences
+end
+
+local function HealFences(char)
+  local healed = Fences.Heal()
+  if #healed > 0 then
+    FenceNotes(char).healed = { at = seams.Time(), windows = healed }
+  end
+end
+
+local function NoteFenced(char, read, before, now)
+  local count = 0
+  for guid, item in pairs(read.items) do
+    if item.place == "bag" and not (before.known or {})[guid] then count = count + 1 end
+  end
+  if count == 0 then return end
+  local window = Fences.Paused() or "a window that just closed"
+  Debug().Log("TRACK", "Not claimed (fenced by %s): %d new %s", window, count, count == 1 and "item" or "items")
+  FenceNotes(char).skipped = { at = now, window = window, count = count, open = Fences.OpenList() }
+end
+
 local BeginRun   -- defined below
 
 local function ScheduleRetry()
@@ -160,6 +265,7 @@ end
 -- Reconcile(): one read into the ledger; false when the read was incomplete
 function Runs.Reconcile()
   local char = Runs.Char()
+  HealFences(char)
   local read = seams.Read(KnownItemIDs(char.ledger))
   -- A few reads in a row only: if the game keeps placing an item no read
   -- finds, the read goes through and the away list keeps the loot
@@ -190,17 +296,21 @@ function Runs.Reconcile()
     resync = resyncPending, containerOpen = Fences.IsContainerOpen(), now = seams.Time(),
   }
   local before = { known = char.ledger.known, owned = char.ledger.owned }
-  local changes = Ledger.Reconcile(char.ledger, read, ctx)
+  local changes = WithoutKept(char, Ledger.Reconcile(char.ledger, read, ctx))
+  if ctx.runActive and ctx.fenced then NoteFenced(char, read, before, ctx.now) end
   local expecting = Runs.NoteTokenLeft(read, before)
   Runs.SettleConversion(char, read, before, ctx.now)
   Fences.ConsumeIfSettled()
   if resyncPending then Debug().Log("TRACK", "Resync read done") end
   resyncPending = false
+  NoteOwn(changes)
   if HasChanges(changes) then
     LogChanges(changes)
     CobysLootSweeper.History.OnChanges(WithoutRelease(changes, expecting), char.ledger, ctx.now)
     Bus():Fire(Events.PileChanged)
   end
+  -- A vendor's buyback list names what was sold there by someone else
+  CobysLootSweeper.Buyback.AfterRead(changes.released)
   if ctx.resync then Runs.RescueFromHistory(char, read) end
   if pendingStart then
     local p = pendingStart
@@ -275,6 +385,7 @@ function Runs.SettleConversion(char, read, before, now)
   end
   local changes, result = Ledger.ClaimConversion(char.ledger, read, before, expect)
   if not result then return end
+  changes = WithoutKept(char, changes)
   History.Used(expect.guid, now)
   if result == "claimed" then
     LogChanges(changes)
@@ -291,7 +402,11 @@ end
 -- its run with it
 function Runs.RescueFromHistory(char, read)
   local History = CobysLootSweeper.History
-  local changes = Ledger.Rescue(char.ledger, read, History.OpenRecords())
+  local changes = WithoutKept(char, Ledger.Rescue(char.ledger, read, History.OpenRecords()))
+  if #changes.released > 0 then
+    History.OnChanges(changes, char.ledger, seams.Time())
+    Bus():Fire(Events.PileChanged)
+  end
   if #changes.claimed == 0 then return end
   for _, c in ipairs(changes.claimed) do
     local runId = char.ledger.pile[c.guid] and char.ledger.pile[c.guid].runId
@@ -309,7 +424,7 @@ end
 -------------------------------------------------------------------------------
 local function PruneRuns(char)
   local used = {}
-  for _, list in ipairs({ char.ledger.pile, char.ledger.away }) do
+  for _, list in ipairs({ char.ledger.pile, char.ledger.away, char.ledger.ignored }) do
     for _, entry in pairs(list) do
       if entry.runId then used[entry.runId] = true end
     end
@@ -329,11 +444,20 @@ local function StartMessage(p, name)
   return string.format("Tracking %s. Your existing items are safe.", name)
 end
 
+-- Tracked(info): does a run start by itself here? Old content, or current
+-- content the player said yes to (always, or for this visit)
+function Runs.Tracked(info)
+  if info.eligible then return true end
+  if not Instance.Offerable(info) then return false end
+  local id = info.instanceMapID
+  return CobysLootSweeper.Prefs.IsAllowed(id) or visit.once == id
+end
+
 -- Is an automatic start still where it was asked for?
 local function StillEligible(p)
   if p.kind ~= "auto" then return true end
   local now = Instance.Evaluate()
-  return now.eligible and p.info ~= nil and now.instanceMapID == p.info.instanceMapID
+  return Runs.Tracked(now) and p.info ~= nil and now.instanceMapID == p.info.instanceMapID
 end
 
 BeginRun = function(p)
@@ -350,6 +474,7 @@ BeginRun = function(p)
   char.run = {
     id = id, kind = p.kind, name = name, startedAt = seams.Time(),
     instanceMapID = p.info and p.info.instanceMapID or nil,
+    once = p.once == true or nil,   -- "Yes, this time": kept across a /reload (RUN-01)
   }
   char.runs[id] = { name = name, kind = p.kind, startedAt = char.run.startedAt }
   Debug().Log("RUN", "Run %d started (%s) in %s", id, p.kind, tostring(name))
@@ -368,7 +493,7 @@ local function Summary(name)
     parts[#parts + 1] = string.format("%d to sell (%s)", s.vendor.count, Utilities.Money(s.vendor.value))
   end
   if s.post.count > 0 then parts[#parts + 1] = string.format("%d worth posting", s.post.count) end
-  if s.keep.count > 0 then parts[#parts + 1] = string.format("%d kept", s.keep.count) end
+  if s.keep.count > 0 then parts[#parts + 1] = string.format("%d protected", s.keep.count) end
   return string.format("%s finished. Waiting from all your runs: %s.", name, table.concat(parts, ", "))
 end
 
@@ -403,30 +528,124 @@ function Runs.OnEnteringWorld(isLogin, isReload)
   end
   local info = Instance.Evaluate()
   Debug().Log("RUN", "Entered %s: eligible=%s (%s)", tostring(info.name), tostring(info.eligible), tostring(info.reason))
+  -- A new place ends this visit's offer and its "Yes, this time"
+  if visit.mapID ~= info.instanceMapID then visit.mapID, visit.offered, visit.once = info.instanceMapID, nil, nil end
+  -- A /reload or login in the instance of a run started with "Yes, this
+  -- time" is still that visit (review 2026-10-01, RUN-01)
+  local saved = char.run
+  if (isLogin or isReload) and saved and saved.once and saved.instanceMapID == info.instanceMapID then
+    visit.once, visit.offered = info.instanceMapID, true
+  end
+  local here = Runs.Tracked(info)
   if pendingStart and pendingStart.kind == "auto"
-      and not (info.eligible and pendingStart.info and info.instanceMapID == pendingStart.info.instanceMapID) then
+      and not (here and pendingStart.info and info.instanceMapID == pendingStart.info.instanceMapID) then
     pendingStart = nil
     preparing = false
     Bus():Fire(Events.RunChanged)
   end
   local run = char.run
-  if run and run.kind == "auto" and not (info.eligible and info.instanceMapID == run.instanceMapID) then
+  if run and run.kind == "auto" and not (here and info.instanceMapID == run.instanceMapID) then
     Runs.EndRun("left the instance")
     run = nil
   elseif run and (isLogin or isReload) and CobysLootSweeper.Config.Get("announce") then
     seams.Message(string.format("Still tracking %s.", run.name or "this run"))
   end
   if char.suppressedMapID and char.suppressedMapID ~= info.instanceMapID then char.suppressedMapID = nil end
-  if not run and info.eligible and char.suppressedMapID ~= info.instanceMapID then
+  if not run and here and char.suppressedMapID ~= info.instanceMapID and not Runs.BlockedHere(info) then
     RequestStart({ kind = "auto", info = info, fromLogin = isLogin or isReload })
+  elseif not run then
+    Runs.CheckOffer(info)
+    -- A delve can say so only a moment after the loading screen
+    seams.After(Runs.OFFER_RECHECK, function() Runs.CheckOffer() end)
   end
   Runs.RequestReconcile()
+end
+
+-------------------------------------------------------------------------------
+-- Current content: offered, never started by itself (AllContent-Plan.md
+-- section 5). Once per visit, OFFER_DELAY seconds after the offer is
+-- decided (past the chat that follows a loading screen, which buried the
+-- first build's line in game, 2026-10-01), one chat line with the addon's
+-- icon and a [Track this run] link, plus TrackOffer's toast and chirp; the
+-- link or the toast opens the prompt: Yes, always here / Yes, this time / No
+-------------------------------------------------------------------------------
+Runs.OFFER_RECHECK = 2
+Runs.OFFER_DELAY = 6
+
+function Runs.OfferLink(id)
+  local U = CobySuite_CobysLootSweeper.Utilities
+  return U.WrapColor(U.ColorToHex(U.Colors.INFO_BLUE),
+    string.format("|Haddon:CobysLootSweeper:track:%d|h[Track this run]|h", id))
+end
+
+-- CheckOffer(info): offers to track current content once per visit
+function Runs.CheckOffer(info)
+  info = info or Instance.Evaluate()
+  local char = Runs.Char()
+  local id = info.instanceMapID
+  if visit.mapID ~= id then visit.mapID, visit.offered, visit.once = id, nil, nil end
+  if char.run or pendingStart or visit.offered or char.suppressedMapID == id then return end
+  if not Instance.Offerable(info) or Runs.BlockedHere(info) then return end
+  if CobysLootSweeper.Prefs.IsAllowed(id) then
+    RequestStart({ kind = "auto", info = info })
+    return
+  end
+  visit.offered = info
+  Debug().Log("RUN", "Offering to track %s (%s)", tostring(info.name), tostring(id))
+  seams.After(Runs.OFFER_DELAY, function()
+    -- Answered, left or replaced meanwhile: nothing to say
+    if Runs.OpenOffer(id) ~= info then return end
+    seams.Message(string.format("|T%s:16|t %s is this season's content, so Loot Sweeper isn't tracking it. %s",
+      tostring(CobysLootSweeper.ICON), info.name or "This place", Runs.OfferLink(id)))
+    seams.Announce(info)
+  end)
+end
+
+-- The offer still open here, or nil (the link's id must match)
+function Runs.OpenOffer(id)
+  local offer = visit.offered
+  if type(offer) ~= "table" or (id and offer.instanceMapID ~= id) then return nil end
+  return offer
+end
+
+-- AnswerOffer(answer, asked): "always" (adds the place to the allow list),
+-- "once" (this visit) or "no"; true when a run is on its way. asked: the
+-- offer the prompt showed; a different one open now is left alone
+function Runs.AnswerOffer(answer, asked)
+  if CobysLootSweeper.Utilities.Guarded("track offer") then return false end
+  local offer = Runs.OpenOffer()
+  if not offer then return false end
+  if asked ~= nil and asked ~= offer then
+    seams.Message("That offer has run out. Loot Sweeper offers again when you next enter current content.")
+    return false
+  end
+  visit.offered = true
+  if answer == "no" then return false end
+  local now = Instance.Evaluate()
+  if now.instanceMapID ~= offer.instanceMapID then
+    seams.Message(string.format("You've left %s, so there is no run to track.", offer.name or "that place"))
+    return false
+  end
+  if answer == "always" then
+    CobysLootSweeper.Prefs.Allow(offer.instanceMapID, offer.name)
+  else
+    visit.once = offer.instanceMapID
+  end
+  if Runs.Char().run or pendingStart then return false end
+  RequestStart({ kind = "auto", info = now, once = answer ~= "always" })
+  return true
 end
 
 function Runs.StartManual()
   local char = Runs.Char()
   if char.run or pendingStart then
     seams.Message("A run is already being tracked.")
+    return false
+  end
+  local blocked = Runs.BlockedHere()
+  if blocked then
+    seams.Message(string.format("%s is on your blocked list, so Loot Sweeper won't track it. /ls kept lists what you blocked.",
+      blocked.name or "This place"))
     return false
   end
   RequestStart({ kind = "manual" })
@@ -454,12 +673,115 @@ end
 -- Forget remaining loot: the pile (or one run's part of it, runId; 0 for
 -- loot with no run) empties; the items are just the player's
 function Runs.Forget(runId)
+  if CobysLootSweeper.Utilities.Guarded("forget") then return end
   local char = Runs.Char()
   CobysLootSweeper.History.LetGo(runId, seams.Time())
   Ledger.Forget(char.ledger, runId)
   PruneRuns(char)
   Debug().Log("RUN", runId and ("Run " .. runId .. "'s loot forgotten") or "Pile forgotten")
   Bus():Fire(Events.PileChanged)
+end
+
+-- Releases from the pile reach History, the runs list and the window
+local function SettleReleases(char, changes)
+  if #changes.released == 0 then return end
+  LogChanges(changes)
+  CobysLootSweeper.History.OnChanges(changes, char.ledger, seams.Time())
+  PruneRuns(char)
+  Bus():Fire(Events.PileChanged)
+end
+
+-- Keep: the pile lets go of every item the player keeps (Prefs.Keep, an
+-- import, the switch to account-wide lists)
+function Runs.LetGoKept()
+  local char = Runs.Char()
+  SettleReleases(char, Ledger.DropKept(char.ledger, CobysLootSweeper.Prefs.IsKept))
+end
+
+-- Ignore these copies (the menu's Ignore): hidden until un-ignored, on the
+-- window's Ignored tab
+function Runs.Ignore(guids)
+  if CobysLootSweeper.Utilities.Guarded("ignore") then return end
+  local char = Runs.Char()
+  SettleReleases(char, Ledger.Ignore(char.ledger, guids, seams.Time()))
+end
+
+-- Unignore(guid): an ignored copy back in the pile, its History record
+-- waiting again; false (and a chat line) when it has left the bags
+function Runs.Unignore(guid)
+  if CobysLootSweeper.Utilities.Guarded("un-ignore") then return false end
+  local char = Runs.Char()
+  local entry = char.ledger.ignored[guid]
+  if not entry then return false end
+  local bag, _, info = seams.Locate(guid)
+  local item = bag and type(info) == "table" and { itemID = info.itemID, count = info.stackCount, place = "bag" } or nil
+  local back = Ledger.Unignore(char.ledger, guid, item)
+  Bus():Fire(Events.PileChanged)
+  if not back then
+    seams.Message("That item isn't in your bags any more, so there is nothing to un-ignore.")
+    return false
+  end
+  CobysLootSweeper.History.Reopen(guid)
+  Runs._test.lastUnignored = guid   -- what Verify's ls.post.unignored checks
+  if back.runId and not char.runs[back.runId] then
+    local info = CobysLootSweeper.History.RunInfo(back.runId) or {}
+    char.runs[back.runId] = { name = info.name or back.runName, kind = "auto", startedAt = info.startedAt,
+                              endedAt = info.endedAt or seams.Time() }
+  end
+  return true
+end
+
+-- Ignored(): { { guid, entry } } of the ignored copies
+function Runs.Ignored()
+  local out = {}
+  for guid, entry in pairs(Runs.Char().ledger.ignored) do out[#out + 1] = { guid = guid, entry = entry } end
+  return out
+end
+
+-------------------------------------------------------------------------------
+-- Blocked places
+-------------------------------------------------------------------------------
+-- Place(info): where the player stands, as a block names it: inside a
+-- dungeon, raid or scenario its instance map ID, elsewhere the zone
+-- { kind = "instances" | "zones", id, name }, or nil when it can't be read
+function Runs.Place(info)
+  info = info or Instance.Evaluate()
+  local t = info.instanceType
+  if (t == "party" or t == "raid" or t == "scenario") and type(info.instanceMapID) == "number" then
+    return { kind = "instances", id = info.instanceMapID, name = info.name }
+  end
+  local ok, uiMapID = Utilities.Try(seams.ZoneMap)
+  if not ok or type(uiMapID) ~= "number" or Utilities.IsSecret(uiMapID) then return nil end
+  local okN, name = Utilities.Try(seams.MapName, uiMapID)
+  return { kind = "zones", id = uiMapID, name = okN and type(name) == "string" and name or seams.ZoneName() }
+end
+
+-- BlockedHere(info): the place when the player blocked it (a zone also
+-- when a map it lies in is blocked), else nil
+function Runs.BlockedHere(info)
+  local place = Runs.Place(info)
+  if not place then return nil end
+  local Prefs = CobysLootSweeper.Prefs
+  if place.kind == "instances" then return Prefs.IsBlocked("instances", place.id) and place or nil end
+  return Prefs.BlockedZone(place.id) and place or nil
+end
+
+-- BlockHere(): never track where the player stands; a run here ends, and
+-- the loot it found stays listed
+function Runs.BlockHere()
+  if CobysLootSweeper.Utilities.Guarded("block") then return false end
+  local place = Runs.Place()
+  if not place then
+    seams.Message("Loot Sweeper can't tell where you are right now. Try again in a moment.")
+    return false
+  end
+  CobysLootSweeper.Prefs.Block(place.kind, place.id, place.name)
+  Debug().Log("RUN", "Blocked %s %s (%s)", place.kind, tostring(place.id), tostring(place.name))
+  if Runs.Char().run or pendingStart then Runs.Stop() end
+  seams.Message(string.format("Loot Sweeper won't track %s any more. Loot it already found stays listed; /ls kept undoes it.",
+    place.name or "this place"))
+  Bus():Fire(Events.RunChanged)
+  return true
 end
 
 -------------------------------------------------------------------------------
@@ -487,7 +809,7 @@ local function OnContainerClosed(token)
   Fences.EndContainer()
   local char = Runs.Char()
   local run = char.run
-  local changes = Ledger.CloseContainerSession(char.ledger, { runId = run and run.id, now = seams.Time() })
+  local changes = WithoutKept(char, Ledger.CloseContainerSession(char.ledger, { runId = run and run.id, now = seams.Time() }))
   if HasChanges(changes) then
     LogChanges(changes)
     CobysLootSweeper.History.OnChanges(changes, char.ledger, seams.Time())
@@ -496,15 +818,24 @@ local function OnContainerClosed(token)
 end
 
 local handlers = {
-  PLAYER_ENTERING_WORLD = function(isLogin, isReload) Runs.OnEnteringWorld(isLogin, isReload) end,
+  -- A loading screen closes the windows a close never came for (Task #109);
+  -- here, not in OnEnteringWorld, so suites that call it leave the real
+  -- fences alone
+  PLAYER_ENTERING_WORLD = function(isLogin, isReload)
+    if not (isLogin or isReload) then Fences.OnLoadingScreen() end
+    Runs.OnEnteringWorld(isLogin, isReload)
+  end,
   BAG_UPDATE_DELAYED = function() Runs.RequestReconcile() end,
   PLAYER_EQUIPMENT_CHANGED = function() Runs.RequestReconcile() end,
+  -- The buyback list changed after a sale with no bag change to follow
+  MERCHANT_UPDATE = function() Runs.RequestReconcile() end,
   PLAYER_INTERACTION_MANAGER_FRAME_SHOW = function(kind) Fences.OnInteraction(kind, true) end,
   PLAYER_INTERACTION_MANAGER_FRAME_HIDE = function(kind)
     Fences.OnInteraction(kind, false)
     Runs.RequestReconcile()
   end,
   QUEST_TURNED_IN = function() Fences.Pulse() end,
+  ACTIVE_DELVE_DATA_UPDATE = function() Runs.CheckOffer() end,
   LOOT_OPENED = function(_, isFromItem) Fences.OnLootOpened(isFromItem, Runs.Ledger()) end,
   LOOT_CLOSED = function() Fences.OnLootClosed(OnContainerClosed) end,
   CHAT_MSG_LOOT = function(text) OnLootChat(text) end,
@@ -519,6 +850,7 @@ Runs._test.OnContainerClosed = OnContainerClosed
 function Runs._test.SetState(opts)
   vetoes = 0
   expect = nil
+  visit.mapID, visit.offered, visit.once = nil, nil, nil
   resyncPending = opts.resync == true
   pendingStart = opts.pendingStart
   preparing = false
@@ -529,11 +861,16 @@ function Runs._test.PendingStart() return pendingStart end
 -- it leaves the real addon as it found it
 function Runs._test.Save()
   return { resyncPending = resyncPending, pendingStart = pendingStart, preparing = preparing,
-           retryScheduled = retryScheduled, vetoes = vetoes, expect = expect }
+           retryScheduled = retryScheduled, vetoes = vetoes, expect = expect,
+           visit = { mapID = visit.mapID, offered = visit.offered, once = visit.once } }
 end
 function Runs._test.Restore(saved)
   resyncPending, pendingStart, preparing = saved.resyncPending, saved.pendingStart, saved.preparing
   retryScheduled, vetoes, expect = saved.retryScheduled, saved.vetoes, saved.expect
+  -- The real offer (the same object: its delayed announcement checks it)
+  -- and "Yes, this time" come back too (review 2026-10-01, TEST-01)
+  local v = saved.visit or {}
+  visit.mapID, visit.offered, visit.once = v.mapID, v.offered, v.once
 end
 
 -- When a fence's tail runs out, one read settles it

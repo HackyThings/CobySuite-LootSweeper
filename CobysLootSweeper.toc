@@ -1,6 +1,6 @@
 ## Interface: 120100
 ## Title: Coby's Loot Sweeper
-## Version: 0.0.1
+## Version: 0.0.2
 ## Author: Cobanyte
 ## OptionalDeps: Auctionator, TradeSkillMaster, Scrap
 ## Notes: Sell the loot from your old-raid and dungeon runs, and see what is worth auctioning. Everything you already had stays safe.
@@ -21,8 +21,11 @@ Libs\CobySuite\Source\Slash\Main.lua
 Libs\CobySuite\Source\Config\Main.lua
 Libs\CobySuite\Source\UI\Factories.lua
 Libs\CobySuite\Source\UI\Window.lua
+Libs\CobySuite\Source\UI\ClickPrompt.lua
 Libs\CobySuite\Source\UI\SettingsWindow.lua
 Libs\CobySuite\Source\UI\TableHeader.lua
+Libs\CobySuite\Source\UI\SortTable.lua
+Libs\CobySuite\Source\UI\Toast.lua
 Libs\CobySuite\Source\UI\Launcher.lua
 Libs\CobySuite\Source\UI\Guide.lua
 Libs\CobySuite\Source\Debug\Logger.lua
@@ -53,6 +56,7 @@ Source\Tracking\Bags.lua
 Source\Tracking\Fences.lua
 Source\Tracking\Runs.lua
 Source\Tracking\History.lua
+Source\Tracking\Signals.lua
 
 # Sorting
 Source\Sorting\Prefs.lua
@@ -60,14 +64,18 @@ Source\Sorting\Prices.lua
 Source\Sorting\Facts.lua
 Source\Sorting\Rules.lua
 Source\Sorting\Pile.lua
+Source\Sorting\Bulk.lua
 
 # Selling
 Source\Selling\Seller.lua
+Source\Selling\Buyback.lua
 
 # UI
 Source\UI\Overview.lua
 Source\UI\QuickSell.lua
+Source\UI\BulkSell.lua
 Source\UI\HistoryView.lua
+Source\UI\IgnoredView.lua
 Source\UI\StepPanel.lua
 Source\UI\MainWindow.lua
 Source\UI\Docking.lua
@@ -76,4 +84,6 @@ Source\UI\Guide.lua
 Source\UI\WhatsNew.lua
 Source\UI\Launcher.lua
 Source\UI\UseToken.lua
+Source\UI\KeptLists.lua
+Source\UI\TrackOffer.lua
 Source\Config\Window.lua

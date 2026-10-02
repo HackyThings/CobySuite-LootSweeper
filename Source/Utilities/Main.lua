@@ -18,6 +18,16 @@ function Utilities.IsSecret(value) return CobySuite_CobysLootSweeper.Utilities.I
 -- True when the table itself is secret
 function Utilities.IsSecretTable(value) return CobySuite_CobysLootSweeper.Utilities.IsSecretTable(value) end
 
+-- Guarded(what): true (and logged) while a development scene shows sample
+-- panels (CobysLootSweeper.SceneGuard, set only by Source/Tests/Verify):
+-- every operation that sells, deletes, uses, forgets or changes the
+-- player's lists refuses then, whatever button or menu reached it
+function Utilities.Guarded(what)
+  if not CobysLootSweeper.SceneGuard then return false end
+  CobysLootSweeper.Debug.Log("UI", "Refused while a scene shows: %s", tostring(what))
+  return true
+end
+
 -- pcall that keeps every return value: ok, ...
 function Utilities.Try(fn, ...)
   if type(fn) ~= "function" then return false, "not a function" end
@@ -48,7 +58,7 @@ function Utilities.When(stamp, now)
   return date("%b ", stamp) .. tonumber(date("%d", stamp))
 end
 
--- Gold-only text for list columns ("12g", "0.5g" below one gold)
+-- Compact money for list columns: whole gold at or above 1g, silver and copper below
 function Utilities.GoldShort(copper)
   if type(copper) ~= "number" or copper <= 0 then return "-" end
   local gold = copper / 10000

@@ -1,13 +1,14 @@
 -------------------------------------------------------------------------------
 -- Seller: sells the reviewed Vendor list at a vendor (design sections 3 and 8)
 --
--- Start() takes the Vendor rows as they are on screen, cheapest first (so the
+-- Start() takes reviewed Vendor or bulk-plan rows, cheapest first (so the
 -- last 12, still in the vendor's buyback, are the most valuable), and sells
 -- them one at a time. Before each sale the item is checked again: the vendor
 -- is still open (C_Container.UseContainerItem would use the item otherwise),
 -- no combat, the same GUID in a carried bag, the whole stack is still run
--- loot (Ledger.IsSellable), not locked, and the rules still say Vendor. An
--- item that fails is skipped. The next sale waits until the item has left
+-- loot (Ledger.IsSellable), not locked, and either still Vendor or, for a
+-- bulk plan's rows (opts.accept), eligible under Rules.Eligible. An item that
+-- fails is skipped. The next sale waits until the item has left
 -- its slot; one that doesn't leave within TIMEOUT stops everything (a
 -- Blizzard confirmation other than the trade question below, a refund
 -- timer, a failed sale: never answered by us). A sale counts only once the
@@ -163,11 +164,20 @@ local function Verify(target)
   local ledger = CobysLootSweeper.Runs.Ledger()
   if not CobysLootSweeper.Ledger.IsSellable(ledger, target.guid, info.stackCount) then return nil, "not run loot" end
   local entry = ledger.pile[target.guid]
+  CobysLootSweeper.Facts.BeginRead()   -- what is worn now, for the gear rules
   local facts = CobysLootSweeper.Facts.Read(bag, slot, info)
   if not facts then return nil, "unreadable" end
-  local pref = CobysLootSweeper.Prefs.For(entry)
+  local pref, remembered = CobysLootSweeper.Prefs.For(entry)
   local quote = CobysLootSweeper.Prices.Quote(facts.link)
-  local result = CobysLootSweeper.Rules.Classify(entry, facts, quote, pref, CobysLootSweeper.Rules.Settings())
+  local Rules = CobysLootSweeper.Rules
+  if target.accept then
+    -- A bulk sale the player reviewed: the same protections, the market's
+    -- reasons lifted (Rules.Eligible)
+    local ok, code = Rules.Eligible(entry, facts, quote, pref, Rules.Settings(), remembered, target.accept)
+    if not ok then return nil, "no longer eligible (" .. tostring(code) .. ")" end
+    return bag, slot
+  end
+  local result = Rules.Classify(entry, facts, quote, pref, Rules.Settings(), remembered)
   if result.bucket ~= "vendor" then return nil, "no longer Vendor" end
   return bag, slot
 end
@@ -237,7 +247,7 @@ Step = function()
   local runToken = token
   -- Last check right before the call: never use an item without a vendor
   if not Seller.MerchantReady() then return Finish("stopped", "Selling stopped: the vendor closed.") end
-  inFlight = { target = target, at = seams.Now(), inCall = true }
+  inFlight = { target = target, inCall = true }
   local ok, err = pcall(seams.Use, bag, slot)
   if inFlight then inFlight.inCall = false end
   if not ok then
@@ -255,7 +265,7 @@ end
 -- UseContainerItem call. So it is answered only then, and only when it names
 -- the item that call used; any other question (the player's own sale, another
 -- addon's) is left to the game and the player (SELL-01)
-local TRADE_QUESTION = "The game asked before selling an item you could still trade, so selling stopped. Turn on \"Sell loot you could still trade without asking\" in settings, or sell it by hand."
+local TRADE_QUESTION = "Selling stopped at the game's trade prompt. Sell the item by hand, or turn on \"Sell group-tradeable loot without the game's extra prompt\" in Settings, At the vendor."
 function Seller.OnTradeQuestion(link)
   if state.phase ~= "selling" or not inFlight or not inFlight.inCall then return false end
   local itemID = type(link) == "string" and tonumber(link:match("item:(%d+)"))
@@ -270,10 +280,13 @@ function Seller.OnTradeQuestion(link)
   return ok
 end
 
--- rows: the Vendor rows as reviewed (Pile.Bucket("vendor")); opts.onFinish.
+-- rows: the Vendor rows as reviewed (Pile.Bucket("vendor")), or a bulk
+-- plan's rows with opts.accept (Bulk.Plan: each is re-checked with
+-- Rules.Eligible instead of "still Vendor"); opts.onFinish.
 -- While paused, an empty rows list carries on with the paused batch, and new
 -- rows replace it
 function Seller.Start(rows, opts)
+  if CobysLootSweeper.Utilities.Guarded("sell") then return false end
   if state.phase == "selling" then return false end
   if not Seller.MerchantReady() then return false end
   if seams.InCombat() then return false end
@@ -290,7 +303,7 @@ function Seller.Start(rows, opts)
   for _, row in ipairs(rows or {}) do
     queue[#queue + 1] = {
       guid = row.guid, itemID = row.entry.itemID, count = row.facts.count,
-      value = row.vendorValue or 0, name = row.facts.name,
+      value = row.vendorValue or 0, name = row.facts.name, accept = opts and opts.accept or nil,
     }
   end
   table.sort(queue, function(a, b)

@@ -23,9 +23,9 @@ local GAP = 6
 -- Button order, labels and what each one sells
 QuickSell.DEFS = {
   { key = "junk", label = "Junk", noun = "junk item", nouns = "junk items",
-    tip = "Gray items from your runs. Sold together after you confirm." },
+    tip = "Every gray item from your runs, whatever the auction house says: players rarely buy them. Sold together after you confirm." },
   { key = "bound", label = "Bound gear", noun = "piece of bound gear", nouns = "pieces of bound gear",
-    tip = "Soulbound weapons and armor from your runs whose look you already have. Possible upgrades stay in Keep unless you turned that off in settings." },
+    tip = "Soulbound weapons and armor from your runs whose look you already have. Gear near or above what you wear stays in Protected unless you turned that off in settings." },
   { key = "other", label = "Other", noun = "other bound item", nouns = "other bound items",
     tip = "Bound items that aren't gear: leftovers from old content that only a vendor wants now." },
   { key = "tradeable", label = "Tradeable", step = true, title = "Tradeable loot",
@@ -85,6 +85,7 @@ end
 -- The bar's Sell: the rows it showed, taken before the bar closes (closing
 -- clears them)
 function QuickSell.ConfirmSell()
+  if CobysLootSweeper.Utilities.Guarded("quick sell") then return end
   local pending = q.pending
   QuickSell.CancelConfirm()
   if pending and #pending > 0 then return CobysLootSweeper.Seller.Start(pending) end
@@ -104,7 +105,7 @@ end
 local function Confirm(def, rows, total)
   q.pending = rows
   q.bar.Title:SetText(string.format("Sell %d %s for %s?", #rows, Plural(#rows, def.noun, def.nouns), Utilities.Money(total)))
-  q.bar.Body:SetText("The list above shows exactly what will be sold. The vendor's buyback keeps only your last 12 sales.")
+  q.bar.Body:SetText("Buyback keeps only your last 12 sales.")
   q.ctx.SetGroup(def.group or def.key)
   q.bar:Show()
 end
@@ -112,23 +113,8 @@ end
 QuickSell._test = {
   Confirm = function(...) return Confirm(...) end,
   IsConfirming = function() return q.bar ~= nil and q.bar:IsShown() end,
+  Buttons = function() return q.buttons end,
 }
-
--- Sell all: every bulk group at once (Tradeable and Warbound still go one at a time)
-function QuickSell.SellAll()
-  local runId = q.ctx.RunFilter()
-  local rows, total = {}, 0
-  for _, def in ipairs(QuickSell.DEFS) do
-    if not def.step then
-      for _, row in ipairs(CobysLootSweeper.Pile.Bucket("vendor", nil, runId, def.key)) do
-        rows[#rows + 1] = row
-        total = total + (row.vendorValue or 0)
-      end
-    end
-  end
-  if #rows == 0 then return end
-  Confirm({ noun = "item", nouns = "items", group = "bulk" }, rows, total)
-end
 
 local function OnClick(def)
   local runId = q.ctx.RunFilter()
@@ -198,23 +184,3 @@ function QuickSell.Refresh(s)
   end
 end
 
--- True for a group sold in bulk (not one at a time)
-function QuickSell.IsBulk(key)
-  for _, def in ipairs(QuickSell.DEFS) do
-    if def.key == key then return not def.step end
-  end
-  return false
-end
-
--- What a bulk sale would sell: count and copper (the Sell all button)
-function QuickSell.BulkTotal(s)
-  local count, value = 0, 0
-  for _, def in ipairs(QuickSell.DEFS) do
-    local g = not def.step and s.groups and s.groups[def.key]
-    if g then
-      count = count + g.count
-      value = value + g.value
-    end
-  end
-  return count, value
-end

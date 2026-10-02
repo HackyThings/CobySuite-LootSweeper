@@ -30,7 +30,8 @@ local COLUMNS = {
 
 local OUTCOME = {
   sold = "Sold", deleted = "Deleted", equipped = "Equipped", left = "Left your bags", ["let go"] = "Let go",
-  used = "Used: its piece joined the run", combined = "Combined into another stack",
+  used = "Used", combined = "Combined into another stack", kept = "Kept",
+  ignored = "Ignored",
 }
 
 local v = {}
@@ -61,6 +62,9 @@ HistoryView._test = { Level = Level }
 local function OutcomeText(rec)
   if rec.outcome == nil then return "Waiting", U.Colors.LABEL_GRAY end
   if rec.outcome == "sold" then return "Sold for " .. Utilities.Money(rec.copper or 0), U.Colors.SAGE_GREEN end
+  if rec.outcome == "sold elsewhere" then
+    return "Sold elsewhere for " .. Utilities.Money(rec.copper or 0), U.Colors.SAGE_GREEN
+  end
   if rec.outcome == "deleted" then return "Deleted", U.Colors.CAUTION_ORANGE end
   return OUTCOME[rec.outcome] or rec.outcome, U.Colors.LIGHT_GRAY
 end
@@ -120,8 +124,11 @@ local function InitRow(row, rec)
     row.Icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     UI.AddHoverHighlight(row)
     UI.AddItemTooltip(row, function(self) return self.rec and self.rec.link end, "ANCHOR_RIGHT")
-    row:SetScript("OnClick", function(self)
-      if self.rec and self.rec.link and IsModifiedClick("CHATLINK") then CobySuite_CobysLootSweeper.Chat.PutInChat(self.rec.link) end
+    row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    row:SetScript("OnClick", function(self, button)
+      if not self.rec then return end
+      if button == "RightButton" then return HistoryView.ShowMenu(self, self.rec) end
+      if self.rec.link and IsModifiedClick("CHATLINK") then CobySuite_CobysLootSweeper.Chat.PutInChat(self.rec.link) end
     end)
   end
   row.rec = rec
@@ -131,7 +138,7 @@ local function InitRow(row, rec)
   local quality = rec.link and C_Item.GetItemQualityByID(rec.link)
   local c = quality and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality]
   row.cells[2]:SetText(Name(rec) .. ((rec.count or 1) > 1 and (" x" .. rec.count) or ""))
-  if c then row.cells[2]:SetTextColor(c.r, c.g, c.b) else row.cells[2]:SetTextColor(1, 1, 1) end
+  if c then row.cells[2]:SetTextColor(c.r, c.g, c.b) else row.cells[2]:SetTextColor(unpack(U.Colors.HIGHLIGHT_WHITE)) end
   local level = Level(rec)
   row.cells[3]:SetText(level and tostring(level) or "")
   row.cells[4]:SetText(rec.run or "")
@@ -141,11 +148,39 @@ local function InitRow(row, rec)
   U.AddAlternatingRowBg(row, rec.index or 0)
 end
 
+-- MenuFor(rec): "ignore" for a copy still listed, "unignore" for an
+-- ignored copy still in the bags, else nil (nothing to offer)
+function HistoryView.MenuFor(rec)
+  local ledger = CobysLootSweeper.Runs.Ledger()
+  if rec.outcome == nil and ledger.pile[rec.guid] then return "ignore" end
+  if rec.outcome == "ignored" and ledger.ignored[rec.guid] then return "unignore" end
+  return nil
+end
+
+-- A History row's right-click: Ignore or Un-ignore that copy
+function HistoryView.ShowMenu(owner, rec)
+  local action = HistoryView.MenuFor(rec)
+  if not action then return end
+  MenuUtil.CreateContextMenu(owner, function(_, root)
+    root:CreateTitle(Name(rec))
+    if action == "ignore" then
+      root:CreateButton("Ignore", function()
+        local entry = CobysLootSweeper.Runs.Ledger().pile[rec.guid]
+        if entry then entry.runName = rec.run end
+        CobysLootSweeper.Runs.Ignore({ rec.guid })
+      end)
+    else
+      root:CreateButton("Un-ignore", function() CobysLootSweeper.Runs.Unignore(rec.guid) end)
+    end
+  end)
+end
+
 local clearPopup
 local function ConfirmClear()
   if not clearPopup then
     clearPopup = UI.CreateDialogPopup({
       name = "CobysLootSweeperClearHistoryPopup", title = "Clear history?", width = 380, height = 150, danger = true,
+      icon = CobysLootSweeper.ICON,
       body = "Every record and total on this tab is removed, for all runs. Loot still waiting to be sold is not touched.",
       confirmText = "Clear", cancelText = "Cancel", hidden = true,
       onConfirm = function() CobysLootSweeper.History.Clear() end,
@@ -153,6 +188,7 @@ local function ConfirmClear()
   end
   clearPopup:Show()
 end
+HistoryView._test.ConfirmClear = ConfirmClear
 
 -- Build(window, top, bottom, barTop): the table between the run bar and the
 -- footer; the search box on the run bar's row (barTop)
@@ -232,7 +268,8 @@ function HistoryView.TotalsText(runId)
   if (t.looted or 0) == 0 and (t.copper or 0) == 0 then return "" end
   local gold = U.WrapColor(U.ColorToHex(U.Colors.STATUS_GOLD), Utilities.Money(t.copper or 0))
   local deleted = runId == nil and (t.deleted or 0) > 0 and string.format(", %d deleted", t.deleted) or ""
-  return string.format("%d looted, %d sold for %s%s", t.looted or 0, t.sold or 0, gold, deleted)
+  local elsewhere = (t.elsewhere or 0) > 0 and string.format(" (%s of it sold elsewhere)", Utilities.Money(t.elsewhere)) or ""
+  return string.format("%d looted, %d sold for %s%s%s", t.looted or 0, t.sold or 0, gold, elsewhere, deleted)
 end
 
 -- The search box, for the window's run bar layout
@@ -259,8 +296,8 @@ function HistoryView.Refresh()
 end
 
 -- The picked run changed (nil: All runs)
-function HistoryView.SetRun(runId, runName)
-  v.runId, v.runName = runId, runName
+function HistoryView.SetRun(runId)
+  v.runId = runId
   HistoryView.Refresh()
 end
 

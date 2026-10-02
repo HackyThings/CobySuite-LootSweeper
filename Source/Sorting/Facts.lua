@@ -19,7 +19,25 @@
 --   level        gear only (a slot with a look, neck, finger, trinket): its
 --                real item level in this bag slot (GetCurrentItemLevel), nil
 --                for anything else
---   upgrade      item level above the player's equipped average
+--   gear         weapons and armor worn for their stats (not shirts or
+--                tabards): the gear rules apply (AllContent-Plan.md section 3)
+--   reach        gear: the item level it can reach (its upgrade track's
+--                highest, else its own); nil when its level can't be read
+--   track        gear: "track" (an upgrade track was read, with its highest
+--                level, or fully upgraded), "partial" (upgrades left but no
+--                highest level given: Check Sweep, 2026-10-01, saw
+--                maxItemLevel 0 on a Hero 6/6 piece away from the upgrade
+--                NPC), "none" (the game says it has none) or "unknown"
+--   bar          gear: the item level worn where it would go (the lower of
+--                two rings, trinkets or weapons it could replace); nil with
+--                barWhy "empty" (nothing worn there) or "unknown" (unreadable)
+--   forClass     gear: false only when the item names the specs it is for and
+--                none is this class's (nil: no list, or unreadable)
+--   forSpec      gear: false when it names this class's specs but not the
+--                current one
+--   convertible  gear: the game says this character can convert it
+--   expansionID, setID   from the item's info; currentExpansion when its
+--                expansion is the server's
 --   hasUse       it has a Use spell
 --   usable       it has a Use spell and this character can use it now
 --   forMyClass   for an epic Miscellaneous item with a Use (a token) only: true when
@@ -57,7 +75,25 @@ local seams = {
   QuestInfo = function(bag, slot) return C_Container.GetContainerItemQuestInfo(bag, slot) end,
   InSet = function(bag, slot) return C_Container.GetContainerItemEquipmentSetInfo(bag, slot) end,
   ItemLevel = function(loc) return C_Item.GetCurrentItemLevel(loc) end,
-  EquippedAverage = function() return select(2, GetAverageItemLevel()) end,
+  WornLink = function(slot) return GetInventoryItemLink("player", slot) end,
+  WornLevel = function(slot) return C_Item.GetCurrentItemLevel(ItemLocation:CreateFromEquipmentSlot(slot)) end,
+  WornEquipLoc = function(link) return select(4, C_Item.GetItemInfoInstant(link)) end,
+  UpgradeInfo = function(link) return C_Item.GetItemUpgradeInfo(link) end,
+  Convertible = function(loc) return C_Item.IsItemConvertibleAndValidForPlayer(loc) end,
+  ClassID = function() return select(3, UnitClass("player")) end,
+  SpecID = function()
+    local index = C_SpecializationInfo.GetSpecialization()
+    return index and C_SpecializationInfo.GetSpecializationInfo(index)
+  end,
+  ItemSpecs = function(link) return C_Item.GetItemSpecInfo(link) end,
+  ClassSpecs = function(classID)
+    local ids = {}
+    for i = 1, C_SpecializationInfo.GetNumSpecializationsForClassID(classID) or 0 do
+      ids[#ids + 1] = (GetSpecializationInfoForClassID(classID, i))
+    end
+    return ids
+  end,
+  ServerExpansion = function() return GetServerExpansionLevel() end,
   TransmogItem = function(link) return C_TransmogCollection.GetItemInfo(link) end,
   SourceInfo = function(sourceID) return C_TransmogCollection.GetAppearanceInfoBySource(sourceID) end,
   MountFromItem = function(itemID) return C_MountJournal.GetMountFromItem(itemID) end,
@@ -150,21 +186,176 @@ local function GearLevel(loc, equipLoc)
   return level
 end
 
-local function Upgrade(level)
-  if not level then return false end
-  local okA, average = Try(seams.EquippedAverage)
-  if not okA or type(average) ~= "number" then return false end
-  return level > average
-end
-
 local function ItemInfoFacts(facts, link)
-  local ok, name, _, quality, itemLevel, _, _, _, _, equipLoc, icon, sellPrice, classID, subclassID, bindType =
-    Try(seams.ItemInfo, link)
+  local ok, name, _, quality, itemLevel, _, _, _, _, equipLoc, icon, sellPrice, classID, subclassID, bindType,
+    expansionID, setID, isCraftingReagent = Try(seams.ItemInfo, link)
   if not ok or name == nil or IsSecret(name) then return false end
   facts.name, facts.quality, facts.itemLevel, facts.equipLoc, facts.icon = name, quality, itemLevel, equipLoc, icon
   facts.sellPrice = type(sellPrice) == "number" and sellPrice or 0
   facts.classID, facts.subclassID, facts.bindType = classID, subclassID, bindType
+  facts.expansionID = type(expansionID) == "number" and not IsSecret(expansionID) and expansionID or nil
+  facts.setID = type(setID) == "number" and not IsSecret(setID) and setID > 0 and setID or nil
+  facts.reagent = isCraftingReagent == true   -- a crafting reagent (counted in a bulk sale's review)
   return true
+end
+
+-------------------------------------------------------------------------------
+-- Gear: what it can reach, and what is worn where it would go
+-------------------------------------------------------------------------------
+-- Where each kind of gear is worn (equipment slot IDs); two slots for
+-- rings, trinkets and one-handed weapons
+local WORN = {
+  INVTYPE_HEAD = { 1 }, INVTYPE_NECK = { 2 }, INVTYPE_SHOULDER = { 3 }, INVTYPE_CHEST = { 5 }, INVTYPE_ROBE = { 5 },
+  INVTYPE_WAIST = { 6 }, INVTYPE_LEGS = { 7 }, INVTYPE_FEET = { 8 }, INVTYPE_WRIST = { 9 }, INVTYPE_HAND = { 10 },
+  INVTYPE_FINGER = { 11, 12 }, INVTYPE_TRINKET = { 13, 14 }, INVTYPE_CLOAK = { 15 },
+  INVTYPE_2HWEAPON = { 16, 17 }, INVTYPE_WEAPON = { 16, 17 }, INVTYPE_WEAPONMAINHAND = { 16 },
+  INVTYPE_RANGED = { 16 }, INVTYPE_RANGEDRIGHT = { 16 },
+  INVTYPE_WEAPONOFFHAND = { 17 }, INVTYPE_SHIELD = { 17 }, INVTYPE_HOLDABLE = { 17 },
+}
+Facts.WORN = WORN
+local MAIN_HAND, OFF_HAND = 16, 17
+local OFF_HAND_WEAPONS = { INVTYPE_WEAPON = true, INVTYPE_WEAPONOFFHAND = true, INVTYPE_2HWEAPON = true }
+
+local worn = nil   -- [slot] = { level, equipLoc } or false (empty), for one build of the view
+
+-- BeginRead(): the next reads look at what is worn now (Pile calls it once
+-- per build of the view)
+function Facts.BeginRead() worn = {} end
+
+-- What is worn in a slot: { level, equipLoc }, false when empty, or nil
+-- when it can't be read
+local function Worn(slot)
+  worn = worn or {}
+  if worn[slot] ~= nil then return worn[slot] or nil, worn[slot] == false end
+  local okL, link = Try(seams.WornLink, slot)
+  if not okL or IsSecret(link) then return nil, false end
+  if link == nil then
+    worn[slot] = false
+    return nil, true
+  end
+  local okV, level = Try(seams.WornLevel, slot)
+  if not okV or type(level) ~= "number" or IsSecret(level) or level <= 0 then return nil, false end
+  local okE, equipLoc = Try(seams.WornEquipLoc, link)
+  worn[slot] = { level = level, equipLoc = okE and type(equipLoc) == "string" and equipLoc or nil }
+  return worn[slot], false
+end
+
+-- Bar(equipLoc): the item level worn where this gear would go, or nil and
+-- why ("empty" or "unknown")
+function Facts.Bar(equipLoc)
+  local slots = WORN[equipLoc or ""]
+  if not slots then return nil, "unknown" end
+  local main, mainEmpty = Worn(MAIN_HAND)
+  local function Level(slot)
+    local w, empty = Worn(slot)
+    if w then return w.level end
+    -- An off hand under a two-handed weapon compares with that weapon
+    if empty and slot == OFF_HAND and main and main.equipLoc == "INVTYPE_2HWEAPON" then return main.level end
+    return nil, empty and "empty" or "unknown"
+  end
+  if equipLoc == "INVTYPE_WEAPON" or equipLoc == "INVTYPE_2HWEAPON" then
+    -- Weapons compare with the weapons worn: an off hand that is a shield or
+    -- held item isn't one it could replace
+    if not main then return nil, mainEmpty and "empty" or "unknown" end
+    local off, offEmpty = Worn(OFF_HAND)
+    -- An off hand that is there but can't be read, or whose kind can't be,
+    -- might be a weaker weapon: unknown, never the main hand alone (review
+    -- 2026-10-01, GEAR-01)
+    if not off and not offEmpty then return nil, "unknown" end
+    if off and off.equipLoc == nil then return nil, "unknown" end
+    if off and OFF_HAND_WEAPONS[off.equipLoc] then return math.min(main.level, off.level) end
+    return main.level
+  end
+  local lowest
+  for _, slot in ipairs(slots) do
+    local level, why = Level(slot)
+    if not level then return nil, why end
+    lowest = lowest and math.min(lowest, level) or level
+  end
+  return lowest
+end
+
+-- LowestWorn() -> level, equipLoc, or nil and why ("empty": nothing worn
+-- that can be read; "unknown": unreadable): the worn slot with the lowest
+-- item level, for the settings window's gear example
+local EXAMPLE_SLOTS = {
+  "INVTYPE_HEAD", "INVTYPE_NECK", "INVTYPE_SHOULDER", "INVTYPE_CHEST", "INVTYPE_WAIST", "INVTYPE_LEGS",
+  "INVTYPE_FEET", "INVTYPE_WRIST", "INVTYPE_HAND", "INVTYPE_FINGER", "INVTYPE_TRINKET", "INVTYPE_CLOAK",
+  "INVTYPE_WEAPONMAINHAND",
+}
+function Facts.LowestWorn()
+  Facts.BeginRead()
+  local lowest, where, why = nil, nil, "empty"
+  for _, equipLoc in ipairs(EXAMPLE_SLOTS) do
+    local level, slotWhy = Facts.Bar(equipLoc)
+    if level then
+      if not lowest or level < lowest then lowest, where = level, equipLoc end
+    elseif slotWhy == "unknown" then
+      why = "unknown"
+    end
+  end
+  if lowest then return lowest, where end
+  return nil, nil, why
+end
+
+-- Gear worn for its stats: weapons and armor, not shirts or tabards
+function Facts.IsStatGear(facts)
+  return (facts.classID == 2 or facts.classID == 4) and WORN[facts.equipLoc or ""] ~= nil
+end
+
+-- Track(facts, ok, info): what the upgrade answer says; raises facts.reach
+-- to the track's highest level when the game gives one
+function Facts.Track(facts, ok, info)
+  if not ok then return "unknown" end
+  if info == nil then return "none" end
+  if type(info) ~= "table" or Utilities.IsSecretTable(info) then return "unknown" end
+  local max, current, last = info.maxItemLevel, info.currentLevel, info.maxLevel
+  if type(max) == "number" and max > 0 then
+    if facts.reach then facts.reach = math.max(facts.reach, max) end
+    return "track"
+  end
+  if type(current) == "number" and type(last) == "number" and current >= last then return "track" end
+  return "partial"
+end
+
+local function GearFacts(facts, loc, link)
+  facts.gear = true
+  facts.reach = facts.level
+  facts.track = Facts.Track(facts, Try(seams.UpgradeInfo, link))
+  facts.bar, facts.barWhy = Facts.Bar(facts.equipLoc)
+  facts.forClass, facts.forSpec = Facts.SpecFit(link)
+  local okV, convertible = Try(seams.Convertible, loc)
+  facts.convertible = Bool(okV, convertible) == true
+  -- An unreadable server expansion counts as this expansion: the careful side
+  local okX, server = Try(seams.ServerExpansion)
+  if not okX or type(server) ~= "number" or IsSecret(server) then
+    facts.currentExpansion = true
+  else
+    facts.currentExpansion = facts.expansionID ~= nil and facts.expansionID >= server
+  end
+end
+
+-- SpecFit(link) -> forClass, forSpec: from the specs the item names. Only a
+-- list that names specs, none of them this class's, makes forClass false;
+-- no list (most old gear), or one that can't be read, leaves both nil
+function Facts.SpecFit(link)
+  local ok, specs = Try(seams.ItemSpecs, link)
+  if not ok or type(specs) ~= "table" or Utilities.IsSecretTable(specs) or #specs == 0 then return nil, nil end
+  local okC, classID = Try(seams.ClassID)
+  if not okC or type(classID) ~= "number" then return nil, nil end
+  local okL, mine = Try(seams.ClassSpecs, classID)
+  if not okL or type(mine) ~= "table" or #mine == 0 then return nil, nil end
+  local ofClass = {}
+  for _, id in ipairs(mine) do ofClass[id] = true end
+  local okS, current = Try(seams.SpecID)
+  local forClass, forSpec = false, false
+  for _, id in ipairs(specs) do
+    if ofClass[id] then forClass = true end
+    if okS and id == current then forSpec = true end
+  end
+  if not forClass then return false, nil end
+  if not okS or type(current) ~= "number" then return true, nil end
+  return true, forSpec
 end
 
 -- info: the slot's C_Container.GetContainerItemInfo table
@@ -190,7 +381,7 @@ function Facts.Read(bag, slot, info)
     facts.appearance = Facts.Appearance(link, facts.equipLoc)
     facts.collectible = Facts.Collectible(itemID, facts.classID)
     facts.level = GearLevel(loc, facts.equipLoc)
-    facts.upgrade = Upgrade(facts.level)
+    if Facts.IsStatGear(facts) then GearFacts(facts, loc, link) end
     facts.usable, facts.hasUse = Facts.Usable(link)
     facts.accountBound = facts.warbound or Facts.AccountBound(link, facts.bindType)
     ClassFacts(facts, bag, slot, link)

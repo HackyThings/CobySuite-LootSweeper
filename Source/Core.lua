@@ -18,7 +18,7 @@ CobysLootSweeper.Events = {
   ViewChanged = "cobyslootsweeper_view_changed",               -- prices or item data changed
   ViewUpdated = "cobyslootsweeper_view_updated",               -- the pile view is stale; repaint
   SellChanged = "cobyslootsweeper_sell_changed",               -- the seller's progress
-  InteractionChanged = "cobyslootsweeper_interaction_changed", -- kind ("merchant", "auction"), isOpen
+  InteractionChanged = "cobyslootsweeper_interaction_changed", -- kind ("merchant", "auction", "fence"), isOpen
   HistoryChanged = "cobyslootsweeper_history_changed",         -- a record or a total changed
 }
 
@@ -49,7 +49,7 @@ CobySuite_CobysLootSweeper.Slash.Register({
   message = function(text) CobysLootSweeper.Utilities.Message(text) end,
   onEmpty = OpenWindow,
   commands = CobySuite_CobysLootSweeper.Slash.StandardCommands({
-    show = OpenWindow, showHelp = "Open or close the Loot Sweeper window",
+    show = OpenWindow,
     settings = function() CobysLootSweeper.Config.ToggleSettings() end,
     guide = function() CobysLootSweeper.Guide.Toggle() end,
     changelog = function() CobysLootSweeper.WhatsNew.Toggle() end,
@@ -62,6 +62,10 @@ CobySuite_CobysLootSweeper.Slash.Register({
         run = function() CobysLootSweeper.Runs.Stop() end },
       { name = "forget", help = "Forget the remaining loot (the items stay in your bags)",
         run = function() CobysLootSweeper.UI.ConfirmForget() end },
+      { name = "kept", help = "Open Your lists: kept items, remembered Sells and blocked places",
+        run = function() CobysLootSweeper.Config.OpenSettings("lists") end },
+      { name = "block", help = "Never track where you stand (undo it in /ls kept)",
+        run = function() CobysLootSweeper.Runs.BlockHere() end },
       {
         name = "check", help = "Run Check Sweep: the in-game checks, with a copyable report",
         available = function() return CobysLootSweeper.Tests ~= nil and CobysLootSweeper.Tests.RunCheck ~= nil end,

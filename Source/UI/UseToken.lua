@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------
--- UseToken: use a class token straight from the Keep tab
+-- UseToken: use a class token from a loot row's "Use token..." menu
 --
 -- Using an item is a protected action: addon code can't use one, and a menu
 -- entry can't make the secure click itself. So the row menu's "Use token..."
@@ -70,6 +70,15 @@ function UseToken.Aim()
     dialog.Use:Disable()
     dialog.mode = "combat"
     return "combat"
+  end
+  -- A development scene's sample panel: never aimed at anything
+  if CobysLootSweeper.SceneGuard then
+    Disarm()
+    dialog.Use:SetText("Use")
+    dialog.Use:Disable()
+    dialog.Body:SetText(UseToken.BODY)
+    dialog.mode = "guarded"
+    return "guarded"
   end
   local bag, slot = seams.Locate(pending.guid)
   if not bag then

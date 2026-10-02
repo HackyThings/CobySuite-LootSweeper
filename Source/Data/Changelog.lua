@@ -13,6 +13,41 @@
 -------------------------------------------------------------------------------
 CobysLootSweeper.Data.Changelog = {
   {
+    version = "0.0.2",
+    title = "Bulk sell and safer gear",
+    date = "2026-10-01",
+    new = {
+      "Bulk sell: pick a preset or customize, with a preview of items and gold",
+      "Sold elsewhere: History counts sales detected in the vendor's buyback",
+      "Ignore: hide copies without selling, restore from the Ignored tab",
+      "Bind-on-Equip: goes to Post only when the auction house clearly pays more",
+      "Track this run: a notice offers tracking in current dungeons, raids and delves",
+      "Keep for good: right-click an item to never see it again on this character",
+      "Never track a place: right-click the banner or type {/ls block}",
+      "Your lists: {/ls kept} manages Keep, Sell and tracking choices",
+      "Careful with gear: set pieces, convertible and warbound gear stay protected",
+    },
+    changed = {
+      "Selling one at a time: shows vendor and auction prices, the difference and price age",
+      "Junk: every gray item, whatever the auction house says",
+      "Settings: five clearer pages with examples and Auctionator and TSM status",
+      "Protected tab: replaces Keep and lists what Loot Sweeper won't sell, with the reason",
+      "Your choices are now per character",
+      "Gear near or above what you wear no longer shows in Post",
+      "Item tooltips: hover a row to read its whole reason",
+    },
+    fixed = {
+      "A boss drop that starts a quest is now counted",
+      "Splitting and merging stacks no longer mistakes your items for run loot",
+      "Weapons stay protected when your off-hand gear can't be read",
+      "Gear decisions refresh when you change equipment",
+      "Yes, this time: tracking now lasts through a login or reload",
+      "An old tracking prompt can no longer answer a newer offer",
+      "The banner now counts the tracked run's loot whichever run is picked",
+      "Tracking no longer stays paused after certain windows close",
+    },
+  },
+  {
     version = "0.0.1",
     title = "First build",
     date = "2026-10-01",

@@ -11,20 +11,15 @@ local launcher = CobySuite_CobysLootSweeper.UI.CreateLauncher({
   tooltip = function()
     local s = CobysLootSweeper.Pile.Summary()
     local run = CobysLootSweeper.Runs.Active()
-    return {
-      brandColor = CobysLootSweeper.BRAND_COLOR,
-      title = "Coby's Loot Sweeper",
-      subtitle = run and ("Tracking " .. (run.name or "a run")) or nil,
-      body = {
-        string.format("To sell: %d (%s)", s.vendor.count, CobysLootSweeper.Utilities.Money(s.vendor.value)),
-        string.format("Worth posting: %d", s.post.count),
-        string.format("Kept: %d", s.keep.count),
-      },
-      keys = {
-        { key = "Left-click", desc = "Open the window" },
-        { key = "Right-click", desc = "Open settings" },
-      },
-    }
+    local status = {}
+    if run then status[#status + 1] = "Tracking " .. (run.name or "a run") end
+    status[#status + 1] = string.format("To sell: %d (%s)", s.vendor.count, CobysLootSweeper.Utilities.Money(s.vendor.value))
+    status[#status + 1] = string.format("Worth posting: %d", s.post.count)
+    status[#status + 1] = string.format("Protected: %d", s.keep.count)
+    return CobySuite_CobysLootSweeper.UI.LauncherTooltip({
+      title = "Coby's Loot Sweeper", brandColor = CobysLootSweeper.BRAND_COLOR, icon = CobysLootSweeper.ICON,
+      status = status, leftClick = "Open Loot Sweeper", rightClick = "Open settings",
+    })
   end,
   onLeftClick = function() CobysLootSweeper.UI.Toggle() end,
   onRightClick = function() CobysLootSweeper.Config.ToggleSettings() end,

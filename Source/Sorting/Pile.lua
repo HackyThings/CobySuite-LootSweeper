@@ -57,7 +57,7 @@ local function BuildRow(guid, entry, settings)
   if not facts.loaded then pcall(seams.RequestItem, entry.itemID) end
   local quote = CobysLootSweeper.Prices.Quote(facts.link)
   local pref, remembered = CobysLootSweeper.Prefs.For(entry)
-  local result = CobysLootSweeper.Rules.Classify(entry, facts, quote, pref, settings)
+  local result = CobysLootSweeper.Rules.Classify(entry, facts, quote, pref, settings, remembered)
   local Rules = CobysLootSweeper.Rules
   return {
     guid = guid, entry = entry, bag = bag, slot = slot, facts = facts, quote = quote,
@@ -65,13 +65,14 @@ local function BuildRow(guid, entry, settings)
     value = result.value, vendorValue = result.vendorValue, ahValue = result.ahValue,
     runName = CobysLootSweeper.Runs.RunName(entry.runId), pref = pref, remembered = remembered,
     group = result.bucket == Rules.VENDOR and Rules.Group(facts) or nil,
-    deletable = result.bucket == Rules.KEEP and Rules.Deletable(entry, facts, pref, settings) or false,
+    deletable = result.bucket == Rules.KEEP and Rules.Deletable(entry, facts, pref, settings, remembered) or false,
   }
 end
 
 local function Build()
   local ledger = CobysLootSweeper.Runs.Ledger()
   local settings = CobysLootSweeper.Rules.Settings()
+  CobysLootSweeper.Facts.BeginRead()
   local list = {}
   for guid, entry in pairs(ledger.pile) do
     local row = BuildRow(guid, entry, settings)
@@ -99,15 +100,17 @@ local function BuildSummary(list, runId)
       end
       if row.deletable then s.deletable = s.deletable + 1 end
       runs[RunKey(row)] = true
-      if run and row.entry.runId == run.id then
-        s.current.count = s.current.count + 1
-        s.current.value = s.current.value + (row.value or 0)
-      end
+    end
+    -- Whatever run is picked, so the banner never calls a run with loot empty
+    if run and row.entry.runId == run.id then
+      s.current.count = s.current.count + 1
+      s.current.value = s.current.value + (row.value or 0)
     end
   end
   s.runs = CobySuite_CobysLootSweeper.Utilities.TableCount(runs)
   return s
 end
+Pile._test.BuildSummary = BuildSummary
 
 function Pile.Rows()
   if not rows then
@@ -209,6 +212,8 @@ CobysLootSweeper.EventBus:Register(listener, { Events.PileChanged, Events.ViewCh
 local refreshEvents = {
   "GET_ITEM_INFO_RECEIVED", "TRANSMOG_COLLECTION_UPDATED", "NEW_MOUNT_ADDED",
   "NEW_PET_ADDED", "NEW_TOY_ADDED", "EQUIPMENT_SETS_CHANGED",
+  -- What is worn sets the gear rules' bar (review 2026-10-01, UI-01)
+  "PLAYER_EQUIPMENT_CHANGED",
 }
 local frame = CreateFrame("Frame")
 for _, event in ipairs(refreshEvents) do pcall(frame.RegisterEvent, frame, event) end

@@ -32,6 +32,7 @@ local seams = {
   IsChallengeModeActive = function()
     return C_ChallengeMode and C_ChallengeMode.IsChallengeModeActive and C_ChallengeMode.IsChallengeModeActive()
   end,
+  HasActiveDelve = function() return C_DelvesUI and C_DelvesUI.HasActiveDelve and C_DelvesUI.HasActiveDelve() end,
   SeasonMapIDs = function()
     local ids = {}
     if not (C_ChallengeMode and C_ChallengeMode.GetMapTable) then return ids end
@@ -74,6 +75,33 @@ local function Exclusion(info)
     return "this season's Mythic+ dungeons"
   end
   return nil
+end
+
+-- A Mythic+ keystone run (difficulty 8, or a challenge running)
+function Instance.IsKeystone(info)
+  if info.difficultyID == 8 then return true end
+  local ok, challenge = Try(seams.IsChallengeModeActive)
+  return ok and challenge == true
+end
+
+-- Offerable(info): current content Loot Sweeper offers to track (it never
+-- starts by itself there; AllContent-Plan.md section 5): a dungeon or raid
+-- from this expansion, or not on the old-content list, or an old dungeon in
+-- this season's Mythic+ pool outside a keystone; or a delve or lair.
+-- Never a keystone run, Timewalking or a Remix character
+function Instance.Offerable(info)
+  if info.eligible or type(info.instanceMapID) ~= "number" or Instance.IsKeystone(info) then return false end
+  if EXCLUDED_DIFFICULTY[info.difficultyID] then return false end
+  local okT, season = Try(seams.TimerunningSeasonID)
+  if okT and type(season) == "number" and season > 0 then return false end
+  local t = info.instanceType
+  if t == "party" or t == "raid" then
+    return info.expansion == nil or info.reason == "current content" or info.reason == "this season's Mythic+ dungeons"
+  end
+  -- A delve is an instance (a scenario); outdoors a delve answer is stale
+  if t == nil or t == "none" then return false end
+  local ok, delve = Try(seams.HasActiveDelve)
+  return ok and delve == true
 end
 
 function Instance.Evaluate()

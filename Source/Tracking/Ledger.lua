@@ -19,6 +19,10 @@
 --                         to explain it, plus awayAt (see below)
 --   state.gone[guid]    = { itemID, count, at }: one of the player's own bag
 --                         items that left with no window open (see below)
+--   state.ignored[guid] = a pile entry the player ignored, plus ignoredAt:
+--                         hidden, the item just the player's, until it is
+--                         un-ignored (back in the pile as it was) or leaves
+--                         the bags
 --   state.container = nil, or an open container session (below)
 --
 -- The rules (design sections 4 and 5):
@@ -79,7 +83,7 @@ Ledger.GONE_MAX = 1000
 -- State
 -------------------------------------------------------------------------------
 function Ledger.NewState()
-  return { known = {}, owned = {}, pile = {}, away = {}, gone = {} }
+  return { known = {}, owned = {}, pile = {}, away = {}, gone = {}, ignored = {} }
 end
 
 -- Fills in any missing table so a damaged or older saved state can be used
@@ -90,6 +94,10 @@ function Ledger.Normalize(state)
   if type(state.pile) ~= "table" then state.pile = {} end
   if type(state.away) ~= "table" then state.away = {} end
   if type(state.gone) ~= "table" then state.gone = {} end
+  if type(state.ignored) ~= "table" then state.ignored = {} end
+  for guid, entry in pairs(state.ignored) do
+    if type(guid) ~= "string" or type(entry) ~= "table" or type(entry.itemID) ~= "number" then state.ignored[guid] = nil end
+  end
   for guid, g in pairs(state.gone) do
     if type(guid) ~= "string" or type(g) ~= "table" or type(g.itemID) ~= "number" or type(g.count) ~= "number" then
       state.gone[guid] = nil
@@ -306,7 +314,6 @@ local function OnNewStack(state, guid, item, pool, allow, changes, ctx, oldStack
       Note(changes.pending, guid, item.itemID, units, "container")
       return
     end
-    rest = rest - fromLoot
     fromPool = fromPool + fromLoot   -- counted as run units, but the stack is not pure
     if fromPool > 0 then
       local entry = NewEntry(state, guid, item, ctx, poolRun)
@@ -323,9 +330,12 @@ local function OnNewStack(state, guid, item, pool, allow, changes, ctx, oldStack
   if runUnits == 0 then return end
   local entry = NewEntry(state, guid, item, ctx, fromLoot > 0 and ctx.runId or poolRun)
   entry.pref = poolKeep and "keep" or nil
-  -- New loot counted by the total alone can't be told from a split of the
-  -- player's own stack of the same item: shown, never sold
-  if fromLoot > 0 and oldStacks[item.itemID] then rest = rest + 1 end
+  -- New loot counted by the total alone, or units a run stack gave up, can't
+  -- be told from a split of the player's own stack of the same item: shown,
+  -- never sold (review 2026-10-01, TRACK-01: split your own stack and
+  -- move run units onto it between two reads, and the pool would fund the
+  -- split)
+  if oldStacks[item.itemID] then rest = rest + 1 end
   if rest == 0 then
     entry.count = units
     Note(changes.claimed, guid, item.itemID, units, fromLoot > 0 and "loot" or "moved")
@@ -492,6 +502,15 @@ local function ReturnAway(state, read, changes, deltas)
   end
 end
 
+-- An ignored item no longer in a carried bag (sold, banked, equipped,
+-- destroyed) is forgotten: there is nothing left to un-ignore
+local function PruneIgnored(state, read)
+  for guid, entry in pairs(state.ignored) do
+    local item = read.items[guid]
+    if not item or item.place ~= "bag" or item.itemID ~= entry.itemID then state.ignored[guid] = nil end
+  end
+end
+
 local function PruneAway(state, ctx)
   if type(ctx.now) ~= "number" then return end
   local limit = ctx.now - Ledger.AWAY_DAYS * 86400
@@ -597,6 +616,7 @@ function Ledger.Reconcile(state, read, ctx)
   MarkAway(state, departed, pool, changes, ctx)
   PruneAway(state, ctx)
   PruneGone(state, ctx)
+  PruneIgnored(state, read)
   RefreshLinks(state, read)
   StoreRead(state, read)
   return changes
@@ -670,6 +690,81 @@ function Ledger.Rescue(state, read, records)
     end
   end
   return changes
+end
+
+-- DropKept(state, isKept, changes): every entry of an item the player keeps
+-- leaves the pile, the away list and an open container session. Its notes
+-- in changes (the read that just claimed it) are taken out, so History
+-- never records it as loot, and a release noted as "kept" closes a record
+-- an earlier read opened. Runs calls it after every step that can add to
+-- the pile. Returns changes (a new table when none was given).
+function Ledger.DropKept(state, isKept, changes)
+  changes = changes or NewChanges()
+  local dropped = {}
+  for _, list in ipairs({ state.pile, state.away, state.ignored }) do
+    for guid, entry in pairs(list) do
+      if isKept(entry.itemID) then
+        list[guid] = nil
+        dropped[guid] = true
+        Note(changes.released, guid, entry.itemID, entry.count + entry.added, "kept")
+      end
+    end
+  end
+  if state.container then
+    for guid in pairs(state.container.pending) do
+      local known = state.known[guid]
+      if known and isKept(known.itemID) then
+        state.container.pending[guid] = nil
+        dropped[guid] = true
+      end
+    end
+  end
+  for _, key in ipairs({ "claimed", "held", "pending", "away" }) do
+    local kept = {}
+    for _, c in ipairs(changes[key]) do
+      if not dropped[c.guid] then kept[#kept + 1] = c end
+    end
+    changes[key] = kept
+  end
+  return changes
+end
+
+-- Ignore(state, guids, now): these entries leave the pile for the ignored
+-- list; the items are just the player's until un-ignored. Returns the
+-- changes (released as "ignored")
+function Ledger.Ignore(state, guids, now)
+  local changes = NewChanges()
+  for _, guid in ipairs(guids or {}) do
+    local entry = state.pile[guid]
+    if entry then
+      state.pile[guid] = nil
+      entry.ignoredAt = now
+      state.ignored[guid] = entry
+      Note(changes.released, guid, entry.itemID, entry.count + entry.added, "ignored")
+    end
+  end
+  return changes
+end
+
+-- Unignore(state, guid, item): an ignored entry back in the pile as it was,
+-- held when its stack size changed. item: the GUID's bag item now
+-- ({ itemID, count, place }) or nil. Returns the entry, or nil when the
+-- item has left the bags (the entry is dropped)
+function Ledger.Unignore(state, guid, item)
+  local entry = state.ignored[guid]
+  if not entry then return nil end
+  state.ignored[guid] = nil
+  if state.pile[guid] then return state.pile[guid] end   -- loot landed on it since: already listed
+  if not item or item.place ~= "bag" or item.itemID ~= entry.itemID then return nil end
+  entry.ignoredAt = nil
+  local size = entry.hold == nil and entry.count or entry.added
+  if item.count ~= size then
+    entry.added = math.min(item.count, entry.count + entry.added)
+    entry.count = 0
+    entry.hold = entry.hold or Ledger.HOLD_INTERRUPTED
+  end
+  state.pile[guid] = entry
+  return entry
 end
 
 -- Forget(state[, runId]): the whole pile, or one run's entries (0: entries

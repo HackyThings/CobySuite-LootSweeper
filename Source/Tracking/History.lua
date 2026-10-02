@@ -4,13 +4,17 @@
 -- COBYS_LOOT_SWEEPER_CHAR.history = {
 --   records = { { guid, itemID, link, runId, run, at, count, fromToken,
 --                 outcome, copper, doneAt }, ... }   oldest first, at most History.MAX
---   totals  = { looted, sold, copper, deleted }   all time, never trimmed
---   runs    = { [runId] = { name, startedAt, endedAt, looted, sold, copper } }
+--   totals  = { looted, sold, copper, deleted, elsewhere }   all time, never trimmed
+--   runs    = { [runId] = { name, startedAt, endedAt, looted, sold, copper, elsewhere } }
 -- }
--- outcome: nil while the item still waits, "sold", "deleted", "equipped",
--- "left" (banked, mailed, traded or sold elsewhere), "let go" (Forget),
--- "used" (a token used from Loot Sweeper; what it gave has its own record) or
--- "combined" (merged into another stack, which carries the claim). A split's
+-- outcome: nil while the item still waits, "sold", "sold elsewhere" (by the
+-- player or another addon at a vendor, found in the buyback list: counted
+-- in sold and copper, and in elsewhere), "deleted", "equipped", "left"
+-- (banked, mailed, traded, or sold where buyback couldn't tell), "let go" (Forget),
+-- "used" (a token used from Loot Sweeper; what it gave has its own record),
+-- "combined" (merged into another stack, which carries the claim), "kept"
+-- (the player keeps the item: Loot Sweeper no longer lists it) or
+-- "ignored" (this copy ignored; Reopen opens it again when un-ignored). A split's
 -- new stack gets its own record, not counted as new loot, so its sale is
 -- the run's (HIST-01).
 -- Records follow the ledger's changes (Runs passes them in), the seller's
@@ -42,7 +46,7 @@ function History.Data()
   end
   if type(h.records) ~= "table" then h.records = {} end
   if type(h.totals) ~= "table" then h.totals = {} end
-  for _, key in ipairs({ "looted", "sold", "copper", "deleted" }) do Number(h.totals, key) end
+  for _, key in ipairs({ "looted", "sold", "copper", "deleted", "elsewhere" }) do Number(h.totals, key) end
   if type(h.runs) ~= "table" then h.runs = {} end
   return h
 end
@@ -67,7 +71,7 @@ local function RunStats(h, runId)
     r = { name = info.name, startedAt = info.startedAt, endedAt = info.endedAt }
     h.runs[runId] = r
   end
-  for _, key in ipairs({ "looted", "sold", "copper" }) do Number(r, key) end
+  for _, key in ipairs({ "looted", "sold", "copper", "elsewhere" }) do Number(r, key) end
   return r
 end
 
@@ -80,10 +84,15 @@ local function Trim(h)
   openFor = nil
 end
 
+-- [guid] = "sold", "deleted" or "used": done by Loot Sweeper, until the read
+-- that sees the item leave asks (TakeOwnOutcome)
+local own = {}
+
 local function Close(guid, outcome, copper, now)
   local h = History.Data()
   local rec = Open(h)[guid]
   if not rec then return nil, h end
+  if outcome == "sold" or outcome == "deleted" or outcome == "used" then own[guid] = outcome end
   rec.outcome = outcome
   rec.copper = copper
   rec.doneAt = now or time()
@@ -126,6 +135,32 @@ function History.Sold(guid, copper)
   Fire()
 end
 
+-- SoldElsewhere(guid, copper): run loot that left the bags at a vendor was
+-- found in its buyback list (Buyback): the record, waiting or closed as
+-- "left", becomes "sold elsewhere" and its gold counts, labelled
+History.ELSEWHERE_LOOKBACK = 300   -- the newest records searched
+
+function History.SoldElsewhere(guid, copper)
+  local h = History.Data()
+  local stop = math.max(1, #h.records - History.ELSEWHERE_LOOKBACK + 1)
+  for i = #h.records, stop, -1 do
+    local rec = h.records[i]
+    if type(rec) == "table" and rec.guid == guid then
+      if rec.outcome ~= nil and rec.outcome ~= "left" then return false end
+      if rec.outcome == nil then Open(h)[guid] = nil end
+      rec.outcome, rec.copper, rec.doneAt = "sold elsewhere", copper or 0, rec.doneAt or time()
+      for _, t in ipairs({ h.totals, RunStats(h, rec.runId) or {} }) do
+        t.sold = (t.sold or 0) + 1
+        t.copper = (t.copper or 0) + (copper or 0)
+        t.elsewhere = (t.elsewhere or 0) + (copper or 0)
+      end
+      Fire()
+      return true
+    end
+  end
+  return false
+end
+
 -- A token used from Loot Sweeper (what it gave is recorded as loot)
 function History.Used(guid, now)
   Close(guid, "used", nil, now)
@@ -165,9 +200,35 @@ function History.OnChanges(changes, ledger, now)
       any = Close(c.guid, "left", nil, now) ~= nil or any
     elseif c.why == "moved" then
       any = Close(c.guid, "combined", nil, now) ~= nil or any
+    elseif c.why == "kept" or c.why == "let go" or c.why == "ignored" then
+      any = Close(c.guid, c.why, nil, now) ~= nil or any
     end
   end
   if any then Fire() end
+end
+
+-- TakeOwnOutcome(guid): "sold", "deleted" or "used" when Loot Sweeper did
+-- that to the item since the last read that saw it leave, else nil
+function History.TakeOwnOutcome(guid)
+  local outcome = own[guid]
+  own[guid] = nil
+  return outcome
+end
+
+-- Reopen(guid): an ignored copy back in the pile waits again
+function History.Reopen(guid)
+  local h = History.Data()
+  for i = #h.records, 1, -1 do
+    local rec = h.records[i]
+    if type(rec) == "table" and rec.guid == guid then
+      if rec.outcome ~= "ignored" then return false end
+      rec.outcome, rec.doneAt = nil, nil
+      openFor = nil
+      Fire()
+      return true
+    end
+  end
+  return false
 end
 
 -- Forget: the pile let go of these items (runId, or every run)
@@ -252,6 +313,7 @@ function History.HasAny()
 end
 
 function History.Clear()
+  if CobysLootSweeper.Utilities.Guarded("clear history") then return end
   local char = CobysLootSweeper.Runs.Char()
   char.history = nil
   openFor = nil

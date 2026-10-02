@@ -28,7 +28,7 @@ local Utilities = CobysLootSweeper.Utilities
 StepPanel.WAIT = 2.0
 StepPanel.POLL = 0.1
 
-local WIDTH, HEIGHT, PAD = 420, 220, 16
+local WIDTH, HEIGHT, PAD = 420, 286, 16
 
 local seams = {
   InCombat = function() return InCombatLockdown() end,
@@ -73,10 +73,11 @@ function StepPanel.Verify(mode, row)
   if not CobysLootSweeper.Ledger.IsSellable(ledger, row.guid, info.stackCount) then return nil, "not run loot" end
   if mode == "delete" then
     local entry = ledger.pile[row.guid]
+    CobysLootSweeper.Facts.BeginRead()   -- what is worn now, for the gear rules
     local facts = CobysLootSweeper.Facts.Read(bag, slot, info)
     if not facts then return nil, "unreadable" end
-    local pref = CobysLootSweeper.Prefs.For(entry)
-    if not CobysLootSweeper.Rules.Deletable(entry, facts, pref, CobysLootSweeper.Rules.Settings()) then
+    local pref, remembered = CobysLootSweeper.Prefs.For(entry)
+    if not CobysLootSweeper.Rules.Deletable(entry, facts, pref, CobysLootSweeper.Rules.Settings(), remembered) then
       return nil, "protected"
     end
   end
@@ -97,9 +98,45 @@ local SKIP_TEXT = {
 -------------------------------------------------------------------------------
 -- Painting
 -------------------------------------------------------------------------------
+-- Money in the game's coins (gold, silver and copper icons) when the shared
+-- formatter is there, else as text
+local function Coins(copper)
+  local U2 = CobySuite_CobysLootSweeper.Utilities
+  if U2.FormatMoneyIcons then return U2.FormatMoneyIcons(copper, 13) end
+  return Utilities.Money(copper)
+end
+
+-- The price block (Task #160): what a vendor pays, what the AH would after
+-- its 5% cut (the same number the rules sort by), the difference worked
+-- out, and how old the AH price is
+function StepPanel.PriceLines(row)
+  local vendor, ah = row.vendorValue or 0, row.ahValue
+  local out = { vendor = Coins(vendor) }
+  if not ah then
+    out.ah, out.ahMissing = "no recent price", true
+    return out
+  end
+  out.ah = Coins(ah)
+  local diff = ah - vendor
+  if diff > 0 then
+    local pct = vendor > 0 and string.format(" (+%d%%)", math.floor(diff / vendor * 100 + 0.5)) or ""
+    out.diff, out.better = "+" .. Coins(diff) .. " more on the AH" .. pct, "ah"
+  elseif diff < 0 then
+    out.diff, out.better = "A vendor pays " .. Coins(-diff) .. " more", "vendor"
+  else
+    out.diff, out.better = "The same either way", "vendor"
+  end
+  local a = row.quote and row.quote.auctionator
+  local age = a and a.age
+  if type(age) == "number" then
+    out.age = age < 1 and "AH price from today" or string.format("AH price %d %s old", age, age == 1 and "day" or "days")
+  end
+  return out
+end
+
 local function QualityHex(quality)
   local c = quality and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality]
-  return c and c.hex or "|cffffffff"
+  return c and c.hex or ("|cFF" .. U.ColorToHex(U.Colors.HIGHLIGHT_WHITE))
 end
 
 local function Paint(note)
@@ -113,6 +150,7 @@ local function Paint(note)
     local verb = session.mode == "delete" and "Deleted" or "Sold"
     panel.Detail:SetText(string.format("%s %d, skipped %d.", verb, session.done, session.skipped))
     panel.Warning:SetText("")
+    for _, f in ipairs(panel.PriceParts) do f:Hide() end
     panel.Action:Hide()
     panel.Skip:Hide()
     panel.Stop:SetText("Close")
@@ -128,11 +166,26 @@ local function Paint(note)
     panel.Warning:SetText("Deleting is permanent. There is no buyback.")
     panel.Action:SetText("Delete")
   else
-    local ah = row.ahValue and (", about " .. Utilities.Money(row.ahValue) .. " on the AH") or ""
-    panel.Detail:SetText(string.format("A vendor pays %s%s.", Utilities.Money(row.vendorValue or 0), ah))
+    panel.Detail:SetText(row.reason or "")
+    local p = StepPanel.PriceLines(row)
+    panel.VendorValue:SetText(p.vendor)
+    panel.AHValue:SetText(p.ah)
+    local gray = U.Colors.LABEL_GRAY
+    if p.ahMissing then panel.AHValue:SetTextColor(gray[1], gray[2], gray[3])
+    else panel.AHValue:SetTextColor(unpack(U.Colors.HIGHLIGHT_WHITE)) end
+    panel.Diff:SetText(p.diff or "")
+    local c = p.better == "ah" and U.Colors.SAGE_GREEN or gray
+    panel.Diff:SetTextColor(c[1], c[2], c[3])
+    panel.Age:SetText(p.age or "")
     panel.Warning:SetText(session.note or "")
     panel.Action:SetText("Sell")
   end
+  local selling = session.mode == "sell"
+  for _, f in ipairs(panel.PriceParts) do f:SetShown(selling) end
+  -- The note sits under the prices when they show, under the icon when not
+  panel.Warning:ClearAllPoints()
+  panel.Warning:SetPoint("TOPLEFT", panel.Icon, "BOTTOMLEFT", 0, selling and -78 or -12)
+  panel.Warning:SetPoint("RIGHT", panel, "RIGHT", -PAD, 0)
   if note then panel.Warning:SetText(note) end
   panel.Action:Show()
   panel.Skip:Show()
@@ -164,6 +217,7 @@ local function AwaitGone(guid, deadline, done)
 end
 
 function StepPanel.DeleteCurrent()
+  if CobysLootSweeper.Utilities.Guarded("delete") then return end
   local row = Current()
   if not row or session.busy then return false end
   local bag, slot = StepPanel.Verify("delete", row)
@@ -201,6 +255,7 @@ function StepPanel.DeleteCurrent()
 end
 
 function StepPanel.SellCurrent()
+  if CobysLootSweeper.Utilities.Guarded("step sell") then return end
   local row = Current()
   if not row or session.busy then return false end
   local bag, why = StepPanel.Verify("sell", row)
@@ -228,7 +283,7 @@ function StepPanel.SellCurrent()
 end
 
 local function OnAction()
-  if not session then return end
+  if not session or CobysLootSweeper.Utilities.Guarded("step panel") then return end
   if session.mode == "delete" then StepPanel.DeleteCurrent() else StepPanel.SellCurrent() end
 end
 
@@ -270,8 +325,38 @@ local function Build()
   panel.Detail:SetPoint("TOPLEFT", panel.Name, "BOTTOMLEFT", 0, -6)
   panel.Detail:SetPoint("RIGHT", panel, "RIGHT", -PAD, 0)
   panel.Detail:SetJustifyH("LEFT")
+  -- The prices: two rows with the game's coins, the difference, the age
+  local function Label(text, y)
+    local fs = panel:CreateFontString(nil, "OVERLAY", U.Fonts.BODY)
+    fs:SetPoint("TOPLEFT", panel.Icon, "BOTTOMLEFT", 0, y)
+    fs:SetText(text)
+    local g = U.Colors.LABEL_GRAY
+    fs:SetTextColor(g[1], g[2], g[3])
+    return fs
+  end
+  local function Value(label)
+    local fs = panel:CreateFontString(nil, "OVERLAY", U.Fonts.BODY)
+    fs:SetPoint("TOP", label, "TOP", 0, 0)
+    fs:SetPoint("RIGHT", panel, "RIGHT", -PAD, 0)
+    fs:SetJustifyH("RIGHT")
+    return fs
+  end
+  panel.VendorLabel = Label("Vendor", -12)
+  panel.VendorValue = Value(panel.VendorLabel)
+  panel.AHLabel = Label("Auction house, after the 5% cut", -32)
+  panel.AHValue = Value(panel.AHLabel)
+  panel.Diff = panel:CreateFontString(nil, "OVERLAY", U.Fonts.BODY)
+  panel.Diff:SetPoint("TOPLEFT", panel.AHLabel, "BOTTOMLEFT", 0, -8)
+  panel.Diff:SetJustifyH("LEFT")
+  panel.Age = panel:CreateFontString(nil, "OVERLAY", U.Fonts.SMALL)
+  panel.Age:SetPoint("TOP", panel.Diff, "TOP", 0, 0)
+  panel.Age:SetPoint("RIGHT", panel, "RIGHT", -PAD, 0)
+  panel.Age:SetJustifyH("RIGHT")
+  local ageGray = U.Colors.LABEL_GRAY
+  panel.Age:SetTextColor(ageGray[1], ageGray[2], ageGray[3])
+  panel.PriceParts = { panel.VendorLabel, panel.VendorValue, panel.AHLabel, panel.AHValue, panel.Diff, panel.Age }
   panel.Warning = panel:CreateFontString(nil, "OVERLAY", U.Fonts.SMALL)
-  panel.Warning:SetPoint("TOPLEFT", panel.Icon, "BOTTOMLEFT", 0, -12)
+  panel.Warning:SetPoint("TOPLEFT", panel.Icon, "BOTTOMLEFT", 0, -78)
   panel.Warning:SetPoint("RIGHT", panel, "RIGHT", -PAD, 0)
   panel.Warning:SetJustifyH("LEFT")
   panel.Warning:SetWordWrap(true)

@@ -85,6 +85,13 @@ function Prices.Quote(link)
   return quote
 end
 
+-- Installed(name): is that price source ("Auctionator" or "TSM") loaded?
+function Prices.Installed(name)
+  if name == "Auctionator" then return seams.Auctionator() ~= nil end
+  if name == "TSM" then return seams.TSM() ~= nil end
+  return false
+end
+
 -- Which sources are installed, for the window's footnote and the report
 function Prices.Sources()
   local list = {}

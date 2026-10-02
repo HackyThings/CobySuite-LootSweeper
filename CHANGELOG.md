@@ -4,6 +4,41 @@ All notable changes to Coby's Loot Sweeper are documented here. Format follows [
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-10-01
+
+### Added
+- **Bulk sell:** choose a preset or customize run loot to vendor, with a preview of the items, gold and protections.
+- **Sold elsewhere:** History and gold totals now include sales by you or another addon detected in the vendor's last 12 buyback entries.
+- **Ignore:** hide selected copies without selling them, then restore them from the new Ignored tab or History.
+- **Bind-on-Equip items:** one goes to Post only when its vendor price is more than 10% below its auction value and the auction house pays at least 5g more; otherwise it's sold to a vendor. Change both under Settings, Auction house. Possible upgrades stay protected.
+- **Track this run:** a notice offers tracking in current dungeons, raids and delves, once or on every visit; keystone runs still need `/ls start`.
+- **Keep for good:** right-click an item and pick Keep. Loot Sweeper lets go of every copy and never lists that item again on this character.
+- **Never track a place:** right-click the window's banner, or type `/ls block`, and Loot Sweeper won't track where you stand again.
+- **Your lists:** `/ls kept` manages Keep, Sell and tracking choices, with options to copy or share lists across characters.
+- **Careful with gear:** gear is offered only when it is clearly below what you wear where it would go, counting the item level its upgrade track can reach. Other-spec gear uses the same item-level threshold. This expansion's set pieces, convertible gear and warbound gear also stay protected by default. New settings: "Also protect gear this many item levels below" and "Protect this expansion's warbound gear".
+
+### Changed
+- **Selling one at a time** shows the vendor price and the auction house price (after its 5% cut) in coins, how much more one pays than the other, and how old the AH price is.
+- **Junk is every gray item,** whatever the auction house says, and Junk sells them all. The reasons say it plainly: "Vendor pays at least the AH estimate", "Only 3g more at the AH", "No recent AH price".
+- **Settings:** five clearer pages add gear and price examples, price-age choices, and Auctionator and TSM status.
+- **The Keep tab is now Protected:** it lists the run loot Loot Sweeper won't sell by itself, with the reason. Keep, in the right-click menu, now means hide an item for good.
+- **Your choices are per character:** remembered Sells, and the items you keep, now belong to each character. What you remembered before carries over to every character.
+- **Keep replaces the one-copy Keep:** items you had marked Keep one at a time are let go once, and show as Kept in History.
+- **Gear stays out of Post:** gear near or above what you wear is no longer listed as worth posting.
+- "Never sell possible upgrades" is now "Protect possible upgrades", and compares with the gear in that slot instead of your average item level.
+- **Item tooltips in the list:** hovering a row now shows its whole reason, even when the Why column cuts it short, and reminds you that right-click opens the choices and Shift-click links the item in chat.
+
+### Fixed
+- A boss drop that starts a quest no longer keeps that boss's loot from being counted.
+- Splitting and merging stacks no longer lets your own items be mistaken for run loot.
+- Weapons stay protected when your off-hand gear cannot be read.
+- Gear decisions refresh when you change equipment.
+- **Track this run:** choosing "Yes, this time" now lasts through a login or /reload inside the same instance.
+- An old tracking prompt can no longer answer a newer offer.
+- Gear with upgrades left stays protected when its highest item level is unknown.
+- With one run picked in the window while another run is being tracked, the banner said the tracked run had no loot yet. It now counts the tracked run's loot whichever run is picked.
+- Tracking no longer stays paused after certain windows close; the banner names any window still pausing it.
+
 ## [0.0.1] - 2026-10-01
 
 ### Added
