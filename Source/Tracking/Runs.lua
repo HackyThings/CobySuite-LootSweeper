@@ -1,11 +1,12 @@
 -------------------------------------------------------------------------------
 -- Runs: when a run starts and ends, and the reads that feed the Ledger
 --
--- A run starts by itself on entering a dungeon or raid from a past expansion
--- (Instance.Evaluate) and ends on leaving it; Start and Stop run one by hand
--- anywhere. Stopping inside an eligible instance keeps it from starting again
--- until the next entry. A run always starts after a complete read, so what
--- the player carries at that moment is the baseline (design section 3).
+-- A run starts by itself on entering a dungeon or raid from a past expansion,
+-- or a current-content place the player allowed (Runs.Tracked), and ends on
+-- leaving it; Start and Stop run one by hand anywhere. Stopping inside an
+-- eligible instance keeps it from starting again until the next entry. A run
+-- always starts after a complete read, so what the player carries at that
+-- moment is the baseline (design section 3).
 --
 -- Every bag change schedules one read (Coalesce). The first read after a
 -- login or /reload is a resync (Ledger): nothing counts as new loot. Logging
@@ -16,9 +17,9 @@
 -- Per-character state lives in COBYS_LOOT_SWEEPER_CHAR:
 --   ledger     the Ledger state
 --   run        the active run { id, kind = "auto" | "manual", name,
---              instanceMapID, startedAt } or nil
+--              instanceMapID, startedAt, once } or nil
 --   runs       [id] = { name, kind, startedAt, endedAt } for the active run
---              and runs that still have items in the pile or away
+--              and runs that still have items in the pile, away or ignored
 --   nextRunId, suppressedMapID
 --   keepsMoved true once the 0.0.1 one-copy Keeps were let go (Prefs: a
 --              Keep now covers every copy of the item and hides it)
@@ -150,10 +151,10 @@ local function KnownItemIDs(ledger)
   return ids
 end
 
-Runs.LOG_EACH = 6   -- a list longer than this is one summary line
+Runs.LOG_EACH = 6   -- a list longer than this is logged grouped by why
 
 -- Logs a list of changes as "<verb> <id> x<units> (<why>)" per entry, or as
--- one line grouped by why when the list is long
+-- one line per why when the list is long
 local function LogList(verb, list, whyOf)
   local d = Debug()
   if #list <= Runs.LOG_EACH then
@@ -346,7 +347,6 @@ function Runs.ExpectConversion(guid)
   return true
 end
 
--- After a read: the item a used token gave joins the token's run
 -- The read the expected token leaves in: used when it left the character
 -- (its owned total dropped) and no window that could take it opened or
 -- closed since the Use click; banked, mailed, traded or sold (a window
@@ -562,12 +562,13 @@ function Runs.OnEnteringWorld(isLogin, isReload)
 end
 
 -------------------------------------------------------------------------------
--- Current content: offered, never started by itself (AllContent-Plan.md
+-- Current content: offered, never started by itself (the all-content plan,
 -- section 5). Once per visit, OFFER_DELAY seconds after the offer is
 -- decided (past the chat that follows a loading screen, which buried the
 -- first build's line in game, 2026-10-01), one chat line with the addon's
--- icon and a [Track this run] link, plus TrackOffer's toast and chirp; the
--- link or the toast opens the prompt: Yes, always here / Yes, this time / No
+-- icon and a [Track this run] link, plus TrackOffer's chirp (and its toast,
+-- only with offerToast on); the link opens the prompt, the toast asks in
+-- place: Yes, always here / Yes, this time / No
 -------------------------------------------------------------------------------
 Runs.OFFER_RECHECK = 2
 Runs.OFFER_DELAY = 6
@@ -595,7 +596,8 @@ function Runs.CheckOffer(info)
   seams.After(Runs.OFFER_DELAY, function()
     -- Answered, left or replaced meanwhile: nothing to say
     if Runs.OpenOffer(id) ~= info then return end
-    seams.Message(string.format("|T%s:16|t %s is this season's content, so Loot Sweeper isn't tracking it. %s",
+    -- Asked in chat by default; the link opens the three choices (Task #252)
+    seams.Message(string.format("|T%s:16|t %s is this season's content, so Loot Sweeper isn't tracking it. Click %s to choose.",
       tostring(CobysLootSweeper.ICON), info.name or "This place", Runs.OfferLink(id)))
     seams.Announce(info)
   end)
@@ -845,7 +847,6 @@ for event in pairs(Fences.WINDOW_EVENTS) do
 end
 Runs._test.handlers = handlers
 
-Runs._test.OnContainerClosed = OnContainerClosed
 -- Tests: set the module's own state (resync, pending start)
 function Runs._test.SetState(opts)
   vetoes = 0

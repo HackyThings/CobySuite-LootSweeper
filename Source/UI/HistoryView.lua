@@ -29,7 +29,7 @@ local COLUMNS = {
 }
 
 local OUTCOME = {
-  sold = "Sold", deleted = "Deleted", equipped = "Equipped", left = "Left your bags", ["let go"] = "Let go",
+  equipped = "Equipped", left = "Left your bags", ["let go"] = "Let go",
   used = "Used", combined = "Combined into another stack", kept = "Kept",
   ignored = "Ignored",
 }
@@ -57,8 +57,6 @@ local function Level(rec)
   end
   return levels[link] or nil
 end
-HistoryView._test = { Level = Level }
-
 local function OutcomeText(rec)
   if rec.outcome == nil then return "Waiting", U.Colors.LABEL_GRAY end
   if rec.outcome == "sold" then return "Sold for " .. Utilities.Money(rec.copper or 0), U.Colors.SAGE_GREEN end
@@ -188,7 +186,7 @@ local function ConfirmClear()
   end
   clearPopup:Show()
 end
-HistoryView._test.ConfirmClear = ConfirmClear
+HistoryView._test = { ConfirmClear = ConfirmClear }
 
 -- Build(window, top, bottom, barTop): the table between the run bar and the
 -- footer; the search box on the run bar's row (barTop)

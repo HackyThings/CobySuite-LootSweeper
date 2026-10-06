@@ -1,6 +1,6 @@
 ## Interface: 120100
 ## Title: Coby's Loot Sweeper
-## Version: 0.0.2
+## Version: 0.0.3
 ## Author: Cobanyte
 ## OptionalDeps: Auctionator, TradeSkillMaster, Scrap
 ## Notes: Sell the loot from your old-raid and dungeon runs, and see what is worth auctioning. Everything you already had stays safe.

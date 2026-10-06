@@ -4,6 +4,34 @@ All notable changes to Coby's Loot Sweeper are documented here. Format follows [
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-10-06
+
+### Added
+
+- **Protected tab actions:** "Can't sell (N)..." deletes loot no vendor buys one item at a time, right where that loot is listed. At the auction house, "Check prices with Auctionator" looks up the loot held back for having no recent AH price.
+- **Item tooltips** on the one-at-a-time panel and the Use Token window: hover the icon or name to see the item before you sell, delete or use it.
+
+### Changed
+
+- **Track this run?** asks in chat by default: click **[Track this run]** in the line to choose "Yes, always here", "Yes, this time" or "No". A notice on screen with the same choices comes only if you turn on "Ask with a notice in this season's dungeons, raids and delves" under Settings, Runs. The notice lasts 30 seconds (hover to pause); if it runs out, nothing is decided and the chat link still asks.
+- **Bulk sell preview:** while Bulk sell is open, the banner shows the stacks and gold it would sell. One preview shows at a time: a quick-sell question closes Bulk sell, and Bulk sell closes the question.
+- **Sell and Delete:** a greyed-out button on the one-at-a-time panel now says why, and the delete panel is shorter.
+- **Post tab:** its button always reads "Check prices with Auctionator" and works at the auction house.
+- **Right-click menu:** Automatic, Sell and Remember Sell come first; "Keep every copy" and Ignore, the lasting choices, sit below the line.
+- **Start run and Stop run:** the banner's button says what it does to the run, and is unavailable while a sale runs.
+- **Empty tiles** no longer fade out, since you can still click them.
+- **Settings:** the Cancel button is now **Undo edits**, with the same job: it drops changes you have not applied.
+- Many smaller look and wording improvements across the windows.
+
+### Fixed
+
+- **Track this run:** the notice near the top of the screen now grows to fit its whole message instead of cutting off the last line.
+- **Quick sell confirmation:** the buttons underneath no longer show through the bar that asks before Junk, Bound gear or Other sells.
+- **Bulk sell:** a pick that matches nothing now says "Nothing matches this pick." instead of claiming no run loot is ready to sell.
+- **Stop selling** stays on screen on every tab while a sale runs.
+- **Can't sell** waits until a sale finishes, so deleting can no longer interrupt it.
+- Several smaller bug fixes.
+
 ## [0.0.2] - 2026-10-01
 
 ### Added

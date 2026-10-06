@@ -3,12 +3,16 @@
 --
 -- Announce(info): a few seconds after the loading screen (Runs.OFFER_DELAY,
 -- past the burst of chat that follows it), one chat line with the addon's
--- icon and a [Track this run] link, a toast near the top of the screen
--- (the shared CobySuite.UI.NewToast; click it to choose) and a chirp.
--- Open(id): the suite's prompt (CobySuite.UI.CreateClickPrompt: title bar
--- with the addon icon, a close X, movable, Escape closes it): Yes, always
--- here / Yes, this time / No. Closing it answers nothing; the link or the
--- toast opens it again while the offer stands.
+-- icon and a [Track this run] link (Runs) and a chirp. Only with the
+-- offerToast setting on (off by default, Task #252) a toast near the top
+-- of the screen (the shared CobySuite.UI.NewToast) asks in place too: Yes,
+-- always here / Yes, this time / No as its own buttons, over a bar that
+-- drains for TOAST_SECONDS (Task #246). When the bar runs out the toast
+-- goes and nothing is answered: the offer stands, and the chat link asks
+-- again until the player leaves. Open(id): the same question as the
+-- suite's prompt (CobySuite.UI.CreateClickPrompt: title bar with the addon
+-- icon, a close X, movable, Escape closes it), opened by the link. Closing
+-- either answers nothing.
 --
 -- The link is an "addon" hyperlink (|Haddon:CobysLootSweeper:track:<id>|h).
 -- The game hands a click on such a link to EventRegistry's "SetItemRef"
@@ -23,7 +27,7 @@ CobysLootSweeper.TrackOffer = TrackOffer
 local U = CobySuite_CobysLootSweeper.Utilities
 local UI = CobySuite_CobysLootSweeper.UI
 
-TrackOffer.TOAST_SECONDS = 20
+TrackOffer.TOAST_SECONDS = 30
 
 local prompt, toast
 
@@ -31,6 +35,11 @@ local seams = {
   Listen = function(fn) EventRegistry:RegisterCallback("SetItemRef", fn, TrackOffer) end,
   Chirp = function() PlaySound(SOUNDKIT.UI_BNET_TOAST) end,
   InCombat = function() return InCombatLockdown() end,
+  -- The toast, shown out of combat once built; its frame or nil
+  ShowToast = function(opts)
+    if not toast or InCombatLockdown() then return nil end
+    return toast.Show(opts)
+  end,
 }
 
 -- Parse(link): the instance map ID in one of Loot Sweeper's track links
@@ -50,6 +59,34 @@ local function Answer(answer)
   CobysLootSweeper.Runs.AnswerOffer(answer, offer)
 end
 
+-- A toast button: the answer is for the offer the toast showed (id), and
+-- only while that offer still stands
+local function AnswerFromToast(id, answer)
+  local offer = CobysLootSweeper.Runs.OpenOffer(id)
+  if not offer then
+    CobysLootSweeper.Utilities.Message("That offer has run out. Loot Sweeper offers again when you next enter current content.")
+    return false
+  end
+  if prompt then prompt:Hide() end
+  shown = nil
+  return CobysLootSweeper.Runs.AnswerOffer(answer, offer)
+end
+
+-- The toast's buttons for the offer id: the prompt's own three choices
+function TrackOffer.ToastButtons(id)
+  return {
+    { text = "Yes, always here", onClick = function() AnswerFromToast(id, "always") end },
+    { text = "Yes, this time", onClick = function() AnswerFromToast(id, "once") end },
+    { text = "No", width = 60, side = "right", onClick = function() AnswerFromToast(id, "no") end },
+  }
+end
+
+-- The toast's line: where, and what tracking it means
+function TrackOffer.ToastMessage(info)
+  return string.format("%s is this season's content. Track it like old content? Only this run's loot can be sold.",
+    info.name or "This place")
+end
+
 local function Build()
   if prompt or seams.InCombat() then return end
   prompt = UI.CreateClickPrompt({
@@ -62,7 +99,7 @@ local function Build()
     },
   })
   toast = UI.NewToast({
-    maxVisible = 1, width = 320, height = 50, defaultDuration = TrackOffer.TOAST_SECONDS,
+    maxVisible = 1, width = 380, height = 50, defaultDuration = TrackOffer.TOAST_SECONDS,
     defaultAccentColor = U.Colors.STATUS_GOLD,
     position = function(t) t:SetPoint("TOP", UIParent, "TOP", 0, -150) end,
   })
@@ -88,17 +125,23 @@ function TrackOffer.Open(id)
   return true
 end
 
--- Announce(info): the toast and the chirp beside the chat line (Runs)
+-- Does current content ask with the toast as well as in chat? (Task #252)
+function TrackOffer.WantsToast() return CobysLootSweeper.Config.Get("offerToast") == true end
+
+-- Announce(info): the chirp beside the chat line (Runs), and the toast when
+-- the setting asks for it
 function TrackOffer.Announce(info)
   seams.Chirp()
+  if not TrackOffer.WantsToast() then return nil end
   Build()
-  if not toast or seams.InCombat() then return end
   local id = info.instanceMapID
-  toast.Show({
+  return seams.ShowToast({
     title = "Track this run?",
-    message = string.format("%s is this season's content. Click to choose.", info.name or "This place"),
+    message = TrackOffer.ToastMessage(info),
     icon = CobysLootSweeper.ICON,
-    onClick = function() TrackOffer.Open(id) end,
+    duration = TrackOffer.TOAST_SECONDS,
+    countdown = true,
+    buttons = TrackOffer.ToastButtons(id),
   })
 end
 
@@ -109,6 +152,8 @@ end
 TrackOffer._test = { seams = seams, OnLink = OnLink }
 -- Is the prompt up? (Verify's postconditions)
 function TrackOffer._test.PromptShown() return prompt ~= nil and prompt:IsShown() end
+-- The toast (Verify's offer-toast scene outlines and dismisses it)
+function TrackOffer._test.Toast() return toast end
 
 EventUtil.ContinueOnAddOnLoaded("CobysLootSweeper", function()
   local ok, err = pcall(seams.Listen, OnLink)

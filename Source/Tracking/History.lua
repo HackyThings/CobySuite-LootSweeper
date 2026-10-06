@@ -174,7 +174,7 @@ function History.Deleted(guid)
   Fire()
 end
 
--- The ledger's changes from one read (Runs.Reconcile, container sessions)
+-- The ledger's changes from any step that moves the pile (Runs passes them in)
 function History.OnChanges(changes, ledger, now)
   local any = false
   for _, c in ipairs(changes.claimed or {}) do
@@ -274,8 +274,8 @@ function History.Totals(runId)
   return RunStats(h, runId) or { looted = 0, sold = 0, copper = 0 }
 end
 
--- RunList(): { id, name, startedAt, endedAt, count = looted, sold, copper,
--- history = true } per run with anything recorded, newest first (the run
+-- RunList(): { id, name, startedAt, endedAt, active, count = looted, sold,
+-- copper, history = true } per run with at least one item looted, newest first (the run
 -- picker on the History tab, finished runs included)
 function History.RunList()
   local h = History.Data()

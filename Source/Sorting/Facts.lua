@@ -4,7 +4,7 @@
 -- Read(bag, slot, info) returns a facts table, or nil when the slot is gone:
 --   loaded       item info was ready (false: the rules keep it and wait)
 --   itemID, link, name, icon, quality, count, sellPrice, classID,
---   subclassID, bindType, equipLoc, itemLevel
+--   bindType, equipLoc
 --   bound        C_Item.IsBound (false means it can be traded or posted)
 --   warbound     warbound until equipped (this copy, IsBoundToAccountUntilEquip)
 --   accountBound bound to the warband or account in any way: bind type 7, 8
@@ -12,7 +12,7 @@
 --                the player's characters could use it, and the AH can't
 --   quest        a quest item or quest starter
 --   inSet        in an equipment set
---   openable, hasNoValue, locked (from the slot)
+--   openable, hasNoValue (from the slot)
 --   appearance   "collected", "missing", "unknown" (not readable yet) or
 --                "none" (no look to collect: jewelry, trinkets, non-gear)
 --   collectible  nil, or { kind = "mount" | "pet" | "toy", collected }
@@ -187,12 +187,12 @@ local function GearLevel(loc, equipLoc)
 end
 
 local function ItemInfoFacts(facts, link)
-  local ok, name, _, quality, itemLevel, _, _, _, _, equipLoc, icon, sellPrice, classID, subclassID, bindType,
+  local ok, name, _, quality, _, _, _, _, _, equipLoc, icon, sellPrice, classID, _, bindType,
     expansionID, setID, isCraftingReagent = Try(seams.ItemInfo, link)
   if not ok or name == nil or IsSecret(name) then return false end
-  facts.name, facts.quality, facts.itemLevel, facts.equipLoc, facts.icon = name, quality, itemLevel, equipLoc, icon
+  facts.name, facts.quality, facts.equipLoc, facts.icon = name, quality, equipLoc, icon
   facts.sellPrice = type(sellPrice) == "number" and sellPrice or 0
-  facts.classID, facts.subclassID, facts.bindType = classID, subclassID, bindType
+  facts.classID, facts.bindType = classID, bindType
   facts.expansionID = type(expansionID) == "number" and not IsSecret(expansionID) and expansionID or nil
   facts.setID = type(setID) == "number" and not IsSecret(setID) and setID > 0 and setID or nil
   facts.reagent = isCraftingReagent == true   -- a crafting reagent (counted in a bulk sale's review)
@@ -212,7 +212,6 @@ local WORN = {
   INVTYPE_RANGED = { 16 }, INVTYPE_RANGEDRIGHT = { 16 },
   INVTYPE_WEAPONOFFHAND = { 17 }, INVTYPE_SHIELD = { 17 }, INVTYPE_HOLDABLE = { 17 },
 }
-Facts.WORN = WORN
 local MAIN_HAND, OFF_HAND = 16, 17
 local OFF_HAND_WEAPONS = { INVTYPE_WEAPON = true, INVTYPE_WEAPONOFFHAND = true, INVTYPE_2HWEAPON = true }
 
@@ -222,8 +221,8 @@ local worn = nil   -- [slot] = { level, equipLoc } or false (empty), for one bui
 -- per build of the view)
 function Facts.BeginRead() worn = {} end
 
--- What is worn in a slot: { level, equipLoc }, false when empty, or nil
--- when it can't be read
+-- What is worn in a slot: { level, equipLoc } or nil, then whether the slot
+-- is empty (true) or can't be read (false)
 local function Worn(slot)
   worn = worn or {}
   if worn[slot] ~= nil then return worn[slot] or nil, worn[slot] == false end
@@ -365,7 +364,7 @@ function Facts.Read(bag, slot, info)
   local facts = {
     itemID = itemID, link = link, count = info.stackCount, icon = info.iconFileID,
     quality = info.quality, openable = info.hasLoot == true, hasNoValue = info.hasNoValue == true,
-    locked = info.isLocked == true, name = info.itemName,
+    name = info.itemName,
   }
   facts.loaded = ItemInfoFacts(facts, link)
   local loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
@@ -389,9 +388,9 @@ function Facts.Read(bag, slot, info)
   return facts
 end
 
--- usable, hasUse: a Use spell, and whether this character can use it (the
--- game's own answer; nil when it can't be read, never taken as "no":
--- FACT-01)
+-- usable, hasUse: whether this character can use the Use spell (the game's
+-- own answer; nil when it can't be read, never taken as "no": FACT-01), and
+-- whether the item has one
 function Facts.Usable(link)
   local okS, spellName = Try(seams.ItemSpell, link)
   if not okS or spellName == nil or IsSecret(spellName) then return false, false end

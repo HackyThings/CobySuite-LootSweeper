@@ -39,9 +39,9 @@
 --     out of the pool first, so an unexplained drop never keeps a selling
 --     allowance alive. The pool moves nothing while a fence is up (a bank or
 --     mail swap can keep the total the same).
---   * A new stack counted as loot by the total alone is held as mixed when
---     the player carries another stack of that item that isn't run loot: it
---     could be split from theirs.
+--   * A new stack counted as loot by the total alone, or funded by the pool,
+--     is held as mixed when the player carries another stack of that item that
+--     isn't run loot: it could be split from theirs.
 --   * A claimed stack that grows with no explanation, or run loot landing on
 --     a stack that was already there, becomes "mixed": kept, never sold.
 --   * An equipped item, or one that leaves the bags while a window is open
@@ -191,7 +191,7 @@ local function Hold(entry, changes, guid, hold)
 end
 
 -------------------------------------------------------------------------------
--- Step 1: allowance per item (how much the owned total rose)
+-- Allowance per item (how much the owned total rose)
 -------------------------------------------------------------------------------
 local function OwnedDeltas(state, read)
   local deltas = {}
@@ -214,7 +214,7 @@ local function BuildAllowance(deltas, ctx)
 end
 
 -------------------------------------------------------------------------------
--- Step 2: items that left, and claimed units that left their stack
+-- Items that left, and claimed units that left their stack
 -------------------------------------------------------------------------------
 local function IsPure(entry)
   return entry ~= nil and entry.hold == nil and entry.count > 0
@@ -277,7 +277,7 @@ local function RetireLosses(pool, deltas)
 end
 
 -------------------------------------------------------------------------------
--- Step 3: new stacks and growing stacks
+-- New stacks and growing stacks
 -------------------------------------------------------------------------------
 local function NewEntry(state, guid, item, ctx, runId)
   local entry = {
@@ -445,7 +445,7 @@ end
 -- A player's own item that left with nothing open, back under the same
 -- GUID: known again, never new loot
 local function ReturnGone(state, read, deltas)
-  for guid, g in pairs(state.gone) do
+  for guid in pairs(state.gone) do
     local item = read.items[guid]
     if item and not state.known[guid] and not state.pile[guid] and not state.away[guid] then
       state.gone[guid] = nil
@@ -520,7 +520,7 @@ local function PruneAway(state, ctx)
 end
 
 -------------------------------------------------------------------------------
--- Step 4: items that were equipped, and resync checks
+-- Items that were equipped, and resync checks
 -------------------------------------------------------------------------------
 local function ReleaseEquipped(state, read, changes)
   for guid, item in pairs(read.items) do
@@ -693,7 +693,7 @@ function Ledger.Rescue(state, read, records)
 end
 
 -- DropKept(state, isKept, changes): every entry of an item the player keeps
--- leaves the pile, the away list and an open container session. Its notes
+-- leaves the pile, the away list, the ignored list and an open container session. Its notes
 -- in changes (the read that just claimed it) are taken out, so History
 -- never records it as loot, and a release noted as "kept" closes a record
 -- an earlier read opened. Runs calls it after every step that can add to

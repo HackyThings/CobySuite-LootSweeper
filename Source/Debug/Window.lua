@@ -4,7 +4,7 @@
 
 CobysLootSweeper.DebugWindow = CobySuite_CobysLootSweeper.Debug.NewWindow({
   windowName = "CobysLootSweeperDebugWindow",
-  title = "Coby's Loot Sweeper Debug Log",
+  title = CobySuite_CobysLootSweeper.Utilities.WrapColor(CobysLootSweeper.BRAND_COLOR, "Coby's Loot Sweeper") .. " Debug Log",
   icon = CobysLootSweeper.ICON,
   logger = CobysLootSweeper.Debug,
 })

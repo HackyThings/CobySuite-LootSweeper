@@ -13,6 +13,30 @@
 -------------------------------------------------------------------------------
 CobysLootSweeper.Data.Changelog = {
   {
+    version = "0.0.3",
+    title = "Asks in chat, and Bulk sell preview",
+    date = "2026-10-06",
+    new = {
+      "Can't sell: delete unsellable loot one item at a time",
+      "Item tooltips on the one-at-a-time panel and Use Token",
+    },
+    changed = {
+      "Track this run: asks in chat; a notice is a setting",
+      "Bulk sell: the banner previews the stacks and gold",
+      "Sell and Delete: a greyed button says why",
+      "Post tab: Check prices with Auctionator",
+      "Right-click menu: everyday choices first",
+      "Settings: Cancel is now Undo edits",
+      "Many smaller look and wording improvements",
+    },
+    fixed = {
+      "Track this run notice shows its whole message",
+      "Quick sell bar no longer shows buttons through it",
+      "Stop selling stays on screen while a sale runs",
+      "Several smaller bug fixes",
+    },
+  },
+  {
     version = "0.0.2",
     title = "Bulk sell and safer gear",
     date = "2026-10-01",

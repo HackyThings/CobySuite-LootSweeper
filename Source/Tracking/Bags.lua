@@ -3,7 +3,7 @@
 --
 -- Read(extraItemIDs) returns
 --   { complete, reason, items = { [guid] = { itemID, count, link, place,
---       openable, bag, slot, quality, isBound, hasNoValue, isLocked } },
+--       openable } },
 --     owned = { [itemID] = total with bank, reagent bank and warband bank } }
 -- place is "bag" for the backpack, the four bags and the reagent bag, "equip"
 -- for an equipped item. complete is false when any occupied slot came back
@@ -69,8 +69,7 @@ local function ReadSlot(read, bag, slot)
   end
   read.items[guid] = {
     itemID = info.itemID, count = info.stackCount, link = info.hyperlink, place = "bag",
-    openable = info.hasLoot == true, bag = bag, slot = slot, quality = info.quality,
-    isBound = info.isBound == true, hasNoValue = info.hasNoValue == true, isLocked = info.isLocked == true,
+    openable = info.hasLoot == true,
   }
 end
 
@@ -94,7 +93,7 @@ local function ReadEquipped(read)
       if type(guid) ~= "string" or not Utilities.IsPositiveInteger(itemID) then
         Fail(read, "an equipped item was still loading")
       else
-        read.items[guid] = { itemID = itemID, count = 1, link = link, place = "equip", equipSlot = slot }
+        read.items[guid] = { itemID = itemID, count = 1, link = link, place = "equip" }
       end
     end
   end

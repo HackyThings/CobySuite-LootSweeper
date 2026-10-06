@@ -61,7 +61,7 @@ local function Disarm()
 end
 
 -- Aims the Use button: armed at the token's bag slot only with no vendor
--- open and out of combat. Returns "armed", "vendor", "combat" or "gone"
+-- open and out of combat. Returns "armed", "vendor", "combat", "gone" or "guarded"
 function UseToken.Aim()
   if not dialog or not pending then return "gone" end
   if seams.InCombat() then
@@ -130,7 +130,7 @@ end
 local function Build()
   if dialog or seams.InCombat() then return end
   dialog = UI.CreateWindow({
-    name = "CobysLootSweeperUseToken", title = "Use Token", icon = CobysLootSweeper.ICON,
+    name = "CobysLootSweeperUseToken", title = U.WrapColor(CobysLootSweeper.BRAND_COLOR, "Coby's Loot Sweeper"), icon = CobysLootSweeper.ICON,
     width = WIDTH, height = HEIGHT, strata = "DIALOG", escapeCloses = true,
     point = { "CENTER", UIParent, "CENTER", 0, 120 },
   })
@@ -141,6 +141,13 @@ local function Build()
   dialog.Name:SetPoint("TOPLEFT", dialog.Icon, "TOPRIGHT", 10, -2)
   dialog.Name:SetPoint("RIGHT", dialog, "RIGHT", -PAD, 0)
   dialog.Name:SetJustifyH("LEFT")
+  -- Hovering the icon or the name shows the token (Task #235)
+  dialog.Hover = CreateFrame("Frame", nil, dialog)
+  dialog.Hover:SetPoint("TOPLEFT", dialog.Icon, "TOPLEFT")
+  dialog.Hover:SetPoint("BOTTOMLEFT", dialog.Icon, "BOTTOMLEFT")
+  dialog.Hover:SetPoint("RIGHT", dialog, "RIGHT", -PAD, 0)
+  dialog.Hover:EnableMouse(true)
+  UI.AddItemTooltip(dialog.Hover, function() return pending and pending.link or nil end, "ANCHOR_RIGHT")
   dialog.Body = dialog:CreateFontString(nil, "OVERLAY", U.Fonts.SMALL)
   dialog.Body:SetPoint("TOPLEFT", dialog.Icon, "BOTTOMLEFT", 0, -10)
   dialog.Body:SetPoint("RIGHT", dialog, "RIGHT", -PAD, 0)

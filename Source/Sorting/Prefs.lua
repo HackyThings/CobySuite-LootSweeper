@@ -4,7 +4,7 @@
 -- Keep (the menu's Keep): every copy of the item ID is let go now and never
 -- claimed again; Loot Sweeper doesn't list it any more. Sell: a copy's own
 -- choice (entry.pref = "sell", gone with the entry), or remembered for the
--- item ID ("Remember for future copies"). Blocked: instances (instance map
+-- item ID ("Remember Sell for future copies"). Blocked: instances (instance map
 -- ID), zones (uiMapID; a blocked zone blocks the maps inside it), delves and
 -- quests (kept for later builds) are never tracked.
 --
@@ -209,11 +209,6 @@ function Prefs.Keep(itemID, label)
   Changed()
 end
 
-function Prefs.Unkeep(itemID)
-  Prefs.Lists().keep[itemID] = nil
-  Changed()
-end
-
 -- Set(entry, value, remember): value "keep", "sell" or nil (Automatic)
 function Prefs.Set(entry, value, remember)
   if not entry or CobysLootSweeper.Utilities.Guarded("choice") then return end
@@ -337,7 +332,7 @@ local function Import(into, fromKey)
   return true
 end
 
--- ApplyEdits(text): the window's Apply; returns true
+-- ApplyEdits(text): the window's Apply; returns true (false while a scene shows)
 function Prefs.ApplyEdits(text)
   if CobysLootSweeper.Utilities.Guarded("list edits") then return false end
   local lists = Prefs.Lists()

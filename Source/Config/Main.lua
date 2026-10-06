@@ -19,6 +19,7 @@ local base = CobySuite_CobysLootSweeper.Config.New({
     BOE_MIN_GOLD = "boeMinGold",                   -- and one that pays less than this much more at the AH (gold)
     BULK_CONFIRM = "bulkConfirm",                  -- ask before a bulk sale
     MAX_PRICE_AGE_DAYS = "maxPriceAgeDays",        -- trust an Auctionator price seen within this many days
+    OFFER_TOAST = "offerToast",                    -- current content's Track this run? asks in a toast, not only in chat
   },
   defaults = {
     ["showAtMerchant"] = true,
@@ -34,6 +35,7 @@ local base = CobySuite_CobysLootSweeper.Config.New({
     ["boeMinGold"] = 5,
     ["bulkConfirm"] = true,
     ["maxPriceAgeDays"] = 3,
+    ["offerToast"] = false,
   },
   -- Set refuses a failing value and InitializeData puts the default back for
   -- a failing saved one (a hand-edited or damaged file)
@@ -51,6 +53,7 @@ local base = CobySuite_CobysLootSweeper.Config.New({
     ["boeMinGold"] = { type = "number", min = 0, max = 1000, integer = true },
     ["bulkConfirm"] = { type = "boolean" },
     ["maxPriceAgeDays"] = { type = "number", min = 0, max = 21, integer = true },
+    ["offerToast"] = { type = "boolean" },
   },
   debug = CobysLootSweeper.Debug,
   onSet = function(name, old, value)

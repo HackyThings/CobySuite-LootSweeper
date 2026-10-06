@@ -79,7 +79,6 @@ local function Build()
     CobysLootSweeper.UI.OpenDocked(merchant, "vendor")
   end)
   button:Hide()
-  VendorButton.button = button
 end
 
 -- Shown with the vendor while loot waits; ants while some of it is new

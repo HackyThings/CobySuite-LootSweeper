@@ -14,7 +14,7 @@ CobysLootSweeper.WhatsNew = WhatsNew
 
 local changelog = CobySuite_CobysLootSweeper.UI.CreateWhatsNewWindow({
   name = "CobysLootSweeperChangelogWindow",
-  title = "Coby's Loot Sweeper: What's New",
+  title = U.WrapColor(CobysLootSweeper.BRAND_COLOR, "Coby's Loot Sweeper") .. ": What's New",
   icon = CobysLootSweeper.ICON,
   intro = "What changed in each version of Coby's Loot Sweeper, newest first. Click a version to open or close it.",
   footer = "Open this window any time with " .. U.WrapColor(U.Colors.HELP_COMMAND, "/ls changelog"),
@@ -25,9 +25,6 @@ local changelog = CobySuite_CobysLootSweeper.UI.CreateWhatsNewWindow({
   combatMessage = function(text) CobysLootSweeper.Utilities.Message(text) end,
   onShow = function(what) CobysLootSweeper.Debug.Log("UI", "Login shows the %s", what) end,
 })
-
--- The window's instance, for the suites
-WhatsNew._test = { instance = changelog }
 
 function WhatsNew.Toggle() changelog:Toggle() end
 function WhatsNew.OnLogin() changelog:OnLogin() end

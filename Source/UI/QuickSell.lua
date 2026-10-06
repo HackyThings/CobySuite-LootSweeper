@@ -27,10 +27,10 @@ QuickSell.DEFS = {
   { key = "bound", label = "Bound gear", noun = "piece of bound gear", nouns = "pieces of bound gear",
     tip = "Soulbound weapons and armor from your runs whose look you already have. Gear near or above what you wear stays in Protected unless you turned that off in settings." },
   { key = "other", label = "Other", noun = "other bound item", nouns = "other bound items",
-    tip = "Bound items that aren't gear: leftovers from old content that only a vendor wants now." },
+    tip = "Bound items that aren't gear, with nothing protecting them. Sold together after you confirm." },
   { key = "tradeable", label = "Tradeable", step = true, title = "Tradeable loot",
     note = "It can still be traded. Skip it to keep it for a friend or the auction house.",
-    tip = "Items you could still trade or sell on the auction house, worth more to a vendor right now. You see them one at a time and choose Sell or Skip." },
+    tip = "Items you could still trade or auction, where the AH doesn't pay enough more to be worth a listing (or you chose Sell). You see them one at a time and choose Sell or Skip." },
   { key = "warbound", label = "Warbound", step = true, title = "Warbound loot",
     note = "It's bound to your warband. Skip it to keep it for another of your characters.",
     tip = "Items bound to your warband, such as another class's token: another of your characters could use them. You see them one at a time and choose Sell or Skip." },
@@ -54,7 +54,7 @@ local function BuildBar(window)
   local gold = U.Colors.STATUS_GOLD
   bar.bg = bar:CreateTexture(nil, "BACKGROUND")
   bar.bg:SetAllPoints()
-  bar.bg:SetColorTexture(0.08, 0.07, 0.04, 0.97)
+  bar.bg:SetColorTexture(unpack(U.Colors.WINDOW_BG))
   bar.line = bar:CreateTexture(nil, "BORDER")
   bar.line:SetPoint("TOPLEFT")
   bar.line:SetPoint("TOPRIGHT")
@@ -101,18 +101,25 @@ function QuickSell.CancelConfirm(noRefresh)
   end
 end
 
--- The confirmation for a bulk sale; the list shows the group while it is up
+-- The confirmation for a bulk sale; the list shows the group while it is up.
+-- Bulk sell closes first: the list previews one thing at a time, so what
+-- the bar asks about is what the list shows (Task #235)
 local function Confirm(def, rows, total)
+  CobysLootSweeper.BulkSell.Close()
   q.pending = rows
   q.bar.Title:SetText(string.format("Sell %d %s for %s?", #rows, Plural(#rows, def.noun, def.nouns), Utilities.Money(total)))
   q.bar.Body:SetText("Buyback keeps only your last 12 sales.")
-  q.ctx.SetGroup(def.group or def.key)
+  -- Shown before the window repaints, so the repaint hides what it covers
   q.bar:Show()
+  q.ctx.SetGroup(def.group or def.key)
 end
+
+-- While the bar is up, the window keeps the buttons it covers hidden
+function QuickSell.IsConfirming() return q.bar ~= nil and q.bar:IsShown() end
 
 QuickSell._test = {
   Confirm = function(...) return Confirm(...) end,
-  IsConfirming = function() return q.bar ~= nil and q.bar:IsShown() end,
+  IsConfirming = QuickSell.IsConfirming,
   Buttons = function() return q.buttons end,
 }
 
@@ -142,8 +149,9 @@ function QuickSell.Build(window, ctx)
     q.buttons[i] = UI.CreateButton(window, {
       text = def.label, size = { 100, 22 }, fontSize = 10,
       onClick = function() OnClick(def) end,
-      tooltip = def.tip,
     })
+    -- Titled like the tiles' tooltips: the button's name, then what it does
+    UI.AddRichTooltip(q.buttons[i], def.label, { def.tip })
   end
   QuickSell.Layout()
   window:HookScript("OnSizeChanged", function() QuickSell.Layout() end)
@@ -177,7 +185,8 @@ function QuickSell.Refresh(s)
     local count = def.key == "delete" and (s.deletable or 0) or ((s.groups and s.groups[def.key] or {}).count or 0)
     b:SetText(count > 0 and string.format("%s (%d)", def.label, count) or def.label)
     if def.key == "delete" then
-      b:SetEnabled(count > 0 and not InCombatLockdown())
+      -- Deleting while a sale runs would change the bags under the seller
+      b:SetEnabled(count > 0 and not InCombatLockdown() and not Seller.IsBusy())
     else
       b:SetEnabled(count > 0 and canSell)
     end

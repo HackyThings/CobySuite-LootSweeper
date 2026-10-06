@@ -132,7 +132,7 @@ function IgnoredView.Build(window, top, bottom, barTop)
       IgnoredView.Refresh()
     end,
     selected = function(row) return row.guid == picked end,
-    empty = "Nothing ignored. Right-click an item in the list and choose Ignore to hide one copy.",
+    empty = "Nothing ignored. Right-click an item in the list and choose Ignore to hide its copies.",
   })
   v.table.frame:SetAllPoints(frame)
   v.unignore = UI.CreateButton(window, {
@@ -161,7 +161,7 @@ function IgnoredView.Refresh()
   for _, row in ipairs(rows) do if row.guid == picked then still = true end end
   if not still then picked = nil end
   v.table:SetEmptyText(search ~= "" and "Nothing ignored matches that search."
-    or "Nothing ignored. Right-click an item in the list and choose Ignore to hide one copy.")
+    or "Nothing ignored. Right-click an item in the list and choose Ignore to hide its copies.")
   v.table:SetRows(rows)
   v.unignore:SetEnabled(picked ~= nil)
 end

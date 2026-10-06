@@ -33,7 +33,7 @@ Overview.TILES = {
     tip = { "Post", "Stacks whose AH estimate after the cut meets your Post setting. Check the prices and list them yourself; Loot Sweeper never posts." } },
   { key = "keep", name = "Protected", icon = "Interface\\Icons\\INV_Shield_06", color = "CAUTION_ORANGE",
     label = "protected", empty = "nothing protected yet",
-    tip = { "Protected", "Run loot Loot Sweeper won't sell by itself. The Why column says what protects each one." } },
+    tip = { "Protected", "Loot from your runs that Loot Sweeper won't sell by itself. The Why column says what protects each one." } },
   { key = "history", name = "History", icon = "Interface\\Icons\\INV_Misc_Book_09", color = "INFO_BLUE",
     label = "from vendoring", empty = "nothing looted yet", zero = "nothing sold yet", zeroShort = "none sold",
     tip = { "History", "Everything your runs looted and what became of it, with the gold selling it made. Searchable." } },
@@ -58,13 +58,14 @@ local function Plural(n, one, many) return n == 1 and one or (many or one .. "s"
 -------------------------------------------------------------------------------
 -- The model: what the banner says, and each tile's numbers
 -------------------------------------------------------------------------------
--- Model(s, run, preparing, sell, merchant, runName, history, ignored, paused) -> {
+-- Model(s, run, preparing, sell, merchant, runName, history, ignored, paused, preview) -> {
 -- banner = { state, text, share }, tiles = { [key] = { count, value } },
 -- action = "Start" | "Stop" }. runName: the run picked in the window (s is
 -- then its loot alone); history: { looted, copper } for the History tile;
 -- ignored: how many copies are ignored; paused: the window holding a run's
--- loot back (Fences.Paused), or nil
-function Overview.Model(s, run, preparing, sell, merchant, runName, history, ignored, paused)
+-- loot back (Fences.Paused), or nil; preview: { stacks, copper } while the
+-- list previews a Bulk sell plan
+function Overview.Model(s, run, preparing, sell, merchant, runName, history, ignored, paused, preview)
   local model = { tiles = { vendor = s.vendor, post = s.post, keep = s.keep,
     history = { count = history and history.looted or 0, value = history and history.copper or 0 },
     ignored = { count = ignored or 0, value = 0 } } }
@@ -76,6 +77,11 @@ function Overview.Model(s, run, preparing, sell, merchant, runName, history, ign
             sell.total, Utilities.Money(sell.copper)) }
   elseif sell and (sell.phase == "done" or sell.phase == "stopped" or sell.phase == "paused") and sell.message and merchant then
     b = { state = sell.phase == "done" and "done" or "stopped", text = sell.message }
+  elseif preview and merchant and preview.stacks == 0 then
+    b = { state = "waiting", text = "Bulk sell preview: nothing matches this pick." }
+  elseif preview and merchant then
+    b = { state = "waiting", text = string.format("Bulk sell preview: %d %s for %s. Review the list, then sell from the Bulk sell panel.",
+          preview.stacks, Plural(preview.stacks, "stack"), Utilities.Money(preview.copper)) }
   elseif preparing then
     b = { state = "preparing", text = "Getting ready to track: reading your bags so what you carry stays safe." }
   elseif run and paused then
@@ -95,7 +101,7 @@ function Overview.Model(s, run, preparing, sell, merchant, runName, history, ign
     if total == 0 then
       b = { state = "empty", text = "Nothing waiting yet." }
     elseif merchant and s.vendor.count > 0 then
-      b = { state = "waiting", text = string.format("Ready to sell%s: %d %s for %s. Check the list, then press Sell.",
+      b = { state = "waiting", text = string.format("Ready to sell%s: %d %s for %s. Bulk sell... lets you choose what goes.",
             runName and (" from " .. runName) or "", s.vendor.count, Plural(s.vendor.count, "item"),
             Utilities.Money(s.vendor.value)) }
     elseif runName then
@@ -154,23 +160,24 @@ local function BuildBanner(parent, runButton)
   return banner
 end
 
+local function Numbers(ctx, def) return ctx.tiles and ctx.tiles[def.key] or {} end
+
 -- A tile's live fields, from the model Paint last gave (ctx.tiles): its name
 -- in its color and the count ("Vendor  38"), then what it holds ("284g to
 -- sell", "nothing to sell yet"; short: "284g", "none yet"). On the shared
 -- stat tiles (Task #116): each tile's own color as its accent, the large
 -- font giving way to the body font and the line to its short form when the
--- tile is narrow (the fit Verify's q90-01 asked for), the whole tile faded
--- when empty
-local function Numbers(ctx, def) return ctx.tiles and ctx.tiles[def.key] or {} end
-
+-- tile is narrow (the fit Verify's q90-01 asked for). An empty tile is
+-- never faded, since it stays clickable: its gray name and count and its
+-- "none yet" say it is empty (Task #235)
 local function StatTile(def)
   local c = Color(def.color)
   return {
     key = def.key, icon = def.icon, accent = c,
     value = function(ctx)
       local count = Numbers(ctx, def).count or 0
-      return U.WrapColor(U.ColorToHex(count > 0 and c or { 0.65, 0.65, 0.65 }), def.name) .. "  "
-        .. U.WrapColor(count > 0 and "FFFFFF" or "999999", tostring(count))
+      return U.WrapColor(U.ColorToHex(count > 0 and c or U.Colors.LABEL_GRAY), def.name) .. "  "
+        .. U.WrapColor(U.ColorToHex(count > 0 and U.Colors.HIGHLIGHT_WHITE or U.Colors.DISABLED_GRAY), tostring(count))
     end,
     label = function(ctx)
       local n = Numbers(ctx, def)
@@ -184,10 +191,9 @@ local function StatTile(def)
       if (n.value or 0) > 0 then return Utilities.GoldShort(n.value) end
       return def.zeroShort
     end,
-    dim = function(ctx) return (Numbers(ctx, def).count or 0) == 0 end,
     tooltipFill = function(tip)
       tip:SetText(def.tip[1], 1, 1, 1)
-      tip:AddLine(def.tip[2], nil, nil, nil, true)
+      tip:AddLine(def.tip[2], 1, 1, 1, true)
     end,
   }
 end
@@ -213,7 +219,6 @@ function Overview.Build(window, runButton, onTile, top)
   o.grid:SetPoint("TOPLEFT", window, "TOPLEFT", 12, y)
   o.grid:SetPoint("TOPRIGHT", window, "TOPRIGHT", -12, y)
   o.tiles = o.grid.Tiles   -- Verify's tooltip grid reads them
-  o.window = window
   Overview.frames = o
   return y - Overview.TILE_H - GAP
 end
@@ -236,7 +241,6 @@ local function PaintBanner(b)
   end
 end
 
--- Paint(model, currentTab)
 function Overview.Paint(model, currentTab)
   local o = Overview.frames
   if not o then return end

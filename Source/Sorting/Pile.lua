@@ -17,7 +17,7 @@
 --   newest first. Loot with no run (Pile.OTHER) is listed last as its own
 --   entry.
 -- The rows are rebuilt lazily on the next read after PileChanged,
--- ViewChanged (prices, item data), ConfigChanged or RunChanged, or an item,
+-- ViewChanged (Auctionator's prices), ConfigChanged or RunChanged, or an item,
 -- collection or equipment-set event; ViewUpdated follows, coalesced 0.25 s.
 -- Items whose data is still loading are asked for and re-sorted when it
 -- arrives.

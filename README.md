@@ -8,7 +8,7 @@ Sell the loot from your old-raid and dungeon runs, and see what is worth auction
 
 ## Quick Start
 
-1. **Enter a dungeon or raid from a past expansion.** Tracking starts by itself. In this season's content, click **[Track this run]** when it's offered, or press **Start**.
+1. **Enter a dungeon or raid from a past expansion.** Tracking starts by itself. In this season's content, click **[Track this run]** in the chat line that asks (a setting can also ask with a notice on screen), or press **Start run**.
 2. **Loot as usual.** Only what the run adds counts. What you carried before, and anything from mail, vendors, trades, quests or the bank, is never offered.
 3. **Talk to any vendor.** Click the Loot Sweeper button on the vendor window.
 4. **Sell.** Use **Junk**, **Bound gear** or **Other** for a quick sale, or **Bulk sell...** to pick a preset and preview it first.
@@ -19,7 +19,7 @@ Sell the loot from your old-raid and dungeon runs, and see what is worth auction
 - **Bulk sell:** All junk, Greens, Consumables, Materials, Post items or Everything, or your own mix by quality and kind.
 - **One at a time:** tradeable and warbound loot comes up singly, with both prices in coins and the difference worked out.
 - **Careful with gear:** gear is offered only when it's clearly below what you wear in that slot.
-- **Your choices:** right-click a row to **Keep** an item for good, **Sell** it, or **Ignore** one copy.
+- **Your choices:** right-click a row to **Sell** it, **Keep every copy** of the item for good, or **Ignore** the copies in that row.
 - **Your lists:** what you keep, remembered Sells and blocked places, per character or shared.
 - **History:** what every run looted and what became of it, with the gold it made.
 - **Class tokens:** use a token from its row; the piece joins the token's run.
@@ -50,13 +50,13 @@ Sell the loot from your old-raid and dungeon runs, and see what is worth auction
 
 - **Protection:** protect possible upgrades, how many item levels below still count, warbound gear.
 - **At the vendor:** the vendor button, pausing every 12 sales, the trade prompt, asking before a bulk sale.
-- **Auction house:** when to post, when a Bind-on-Equip item goes to a vendor instead, how old a price may be.
-- **Runs:** the chat line when a run starts and ends.
+- **Auction house:** when to post, when a Bind-on-Equip item goes to a vendor instead, how old a price may be, and whether the window opens beside the auction house.
+- **Runs:** the chat line when a run starts and ends, and whether this season's content also asks with a notice on screen.
 - **Your lists:** remove entries, copy another character's lists, or share one set.
 
 ## Troubleshooting
 
-- **A run didn't start.** Only past-expansion dungeons and raids start by themselves. Press **Start** or type `/ls start` before you loot.
+- **A run didn't start.** Only past-expansion dungeons and raids start by themselves. Press **Start run** or type `/ls start` before you loot.
 - **An item stays in Protected.** Read its reason. A soft one moves with right-click **Sell**; a look you haven't collected, a quest item or a box to open never does.
 - **"No recent AH price".** Scan the auction house with Auctionator, or right-click the item and pick **Sell**.
 - **Selling stopped: "Your bags changed".** Another seller (Scrap, for one) sold something mid-batch. Press the button again.

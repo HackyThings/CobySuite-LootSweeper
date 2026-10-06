@@ -81,7 +81,6 @@ local function Added(prev, cur)
   end
   return {}
 end
-Buyback._test.Added = Added
 
 local function Active()
   if not session then return false end

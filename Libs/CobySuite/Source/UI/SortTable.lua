@@ -36,7 +36,8 @@ local U = CobySuite_CobysLootSweeper.Utilities
 local HEADER_H = 20
 local ICON = 16
 local SCROLL_ROOM = 22
--- the objective tracker's plus and minus, as the collapsible headers use
+-- the objective tracker's per-section plus and minus (the guide's headers use
+-- its expand-all and collapse-all pair)
 local ARROW_OPEN, ARROW_CLOSED = "ui-questtrackerbutton-collapse-section", "ui-questtrackerbutton-expand-section"
 
 local Table = {}
@@ -139,6 +140,32 @@ function UI.CreateSortTable(parent, opts)
     FauxScrollFrame_OnVerticalScroll(self, offset, t.rowHeight, function() t:Paint() end)
   end)
   t.scroll = scroll
+  -- a narrow track behind the template's bar, between its arrow buttons, in
+  -- the divider gray, so its buttons and thumb read as one scrollbar, not
+  -- stray icons beside the table (Crest Exchange's Requirements page, Task
+  -- #239; the first try, in the near-black bar color, didn't show). The bar
+  -- is the template's ScrollBar key, else its slider child.
+  local bar = scroll.ScrollBar
+  if not bar then
+    for _, child in ipairs({ scroll:GetChildren() }) do
+      if child.IsObjectType and child:IsObjectType("Slider") then bar = child end
+    end
+  end
+  if bar then
+    local up, down = bar.ScrollUpButton, bar.ScrollDownButton
+    local track = bar:CreateTexture(nil, "BACKGROUND")
+    track:SetWidth(8)
+    if up and down then
+      track:SetPoint("TOP", up, "BOTTOM", 0, 0)
+      track:SetPoint("BOTTOM", down, "TOP", 0, 0)
+    else
+      track:SetPoint("TOP", bar, "TOP", 0, 0)
+      track:SetPoint("BOTTOM", bar, "BOTTOM", 0, 0)
+    end
+    local c = U.Colors.DIVIDER_GRAY
+    track:SetColorTexture(c[1], c[2], c[3], 0.35)
+    bar.Track = track
+  end
   t.Empty = frame:CreateFontString(nil, "OVERLAY", U.Fonts.BODY)
   t.Empty:SetPoint("TOP", list, "TOP", 0, -24)
   t.Empty:SetWidth(360)

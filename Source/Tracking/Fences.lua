@@ -171,8 +171,7 @@ function Fences.WindowSince(at) return next(open) ~= nil or windowAt >= (at or 0
 function Fences.IsMerchantOpen() return merchantOpen end
 function Fences.IsAuctionOpen() return auctionOpen end
 
--- OpenList(): every open fence, oldest first, with what the game says now
--- (true or false, nil when it can't say), for diag and Check Sweep
+-- What the game says about an open fence: true or false, nil when it can't say
 local function GameSays(key)
   local kind = KindOf(key)
   if kind then return seams.IsInteracting(kind) end
@@ -180,6 +179,8 @@ local function GameSays(key)
   return nil
 end
 
+-- OpenList(): every open fence, oldest first, with what the game says now,
+-- for diag and Check Sweep
 function Fences.OpenList()
   local now, list = seams.Now(), {}
   for key, since in pairs(open) do

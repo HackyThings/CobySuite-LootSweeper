@@ -63,13 +63,14 @@ end
 -- The lines under the switches: what it sells, what it counted, what it left out
 local LEFT_WORDS = {
   protected = "protected", gear = "held as possible upgrades", held = "held for a use", kept = "kept",
-  novendor = "no vendor buys", warbound = "warbound", noprice = "with no recent AH price",
+  novendor = "with no vendor value", warbound = "warbound", noprice = "with no recent AH price",
 }
 local LEFT_ORDER = { "protected", "gear", "held", "kept", "novendor", "warbound", "noprice" }
 
 function BulkSell.Lines(plan)
-  local first = string.format("%d %s · frees %d bag %s · %s", plan.stacks, Plural(plan.stacks, "stack", "stacks"),
-    plan.stacks, Plural(plan.stacks, "slot", "slots"), Utilities.Money(plan.copper))
+  local first = plan.stacks == 0 and "Nothing matches this pick."
+    or string.format("%d %s · frees %d bag %s · %s", plan.stacks, Plural(plan.stacks, "stack", "stacks"),
+      plan.stacks, Plural(plan.stacks, "slot", "slots"), Utilities.Money(plan.copper))
   local notes = {}
   local c = plan.counts
   if c.auction > 0 then notes[#notes + 1] = string.format("%d the AH values above vendor", c.auction) end
@@ -368,6 +369,9 @@ function BulkSell.Open(presetKey)
     return false
   end
   if not p.frame then Build() end
+  -- One preview at a time: a quick-sell question about other rows goes
+  -- (Task #235)
+  CobysLootSweeper.QuickSell.CancelConfirm(true)
   if presetKey and Bulk().Preset(presetKey) then
     local s = Bulk().Saved()
     s.preset, s.custom = presetKey, false
@@ -385,8 +389,6 @@ end
 function BulkSell.Close()
   if p.frame then p.frame:Hide() end
 end
-
-function BulkSell.IsOpen() return p.frame ~= nil and p.frame:IsShown() end
 
 -- The main window's run picker moved: a new plan, and no confirmation for
 -- the old one

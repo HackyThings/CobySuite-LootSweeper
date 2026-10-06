@@ -6,10 +6,10 @@
 -- Share or Split dialog, which takes effect when confirmed and drops the
 -- page's unsaved edits first: sharing changes whose lists they apply to),
 -- Copy another character's lists (a dropdown with counts and "Add to my
--- lists"), then the kept items, the remembered Sell choices and the places
--- never tracked, each with a remove x. Removing and importing are
+-- lists"), then the kept items, the remembered Sell choices, the places
+-- never tracked and the places always tracked, each with a remove x. Removing and importing are
 -- staged edits (KeptLists.KEY, text Prefs.ApplyEdits reads): a staged
--- removal shows struck through with Undo, Apply keeps the edits and Cancel
+-- removal shows struck through with Undo, Apply keeps the edits and Undo edits
 -- drops them; Defaults stages nothing.
 -------------------------------------------------------------------------------
 local KeptLists = {}
@@ -69,8 +69,8 @@ local function RemovedSet(edits)
   return removed
 end
 
--- Rows(edits, which): the saved entries of one group ("keep", "sell" or
--- "places"), by name; a staged removal stays, marked removed
+-- Rows(edits, which): the saved entries of one group ("keep", "sell",
+-- "places" or "allowed"), by name; a staged removal stays, marked removed
 function KeptLists.Rows(edits, which)
   local removed = RemovedSet(edits)
   local rows = {}
@@ -126,7 +126,7 @@ function KeptLists.ImportNote(edits)
     end
   end
   if #names == 0 then return nil end
-  return "Importing from " .. table.concat(names, ", ") .. ": press Apply to keep it, or Cancel."
+  return "Importing from " .. table.concat(names, ", ") .. ": press Apply to keep it, or Undo edits."
 end
 
 -- "12 kept items, 3 Sells and 2 blocked places"
@@ -152,7 +152,7 @@ function KeptLists.CharacterLabel(c)
 end
 
 -------------------------------------------------------------------------------
--- The share and split dialogs (the "Whose lists" tiles open them)
+-- The share and split dialogs (the status card's "Change sharing..." opens them)
 -------------------------------------------------------------------------------
 local shareDialog, splitDialog
 
@@ -285,6 +285,7 @@ function KeptLists.Build(panel)
   panel:DropdownAction{
     visibleWhen = PerCharacter,
     label = "Character",
+    width = 250,   -- room for "Name - Realm (empty)"
     options = function()
       local labels, values = {}, {}
       for _, c in ipairs(Prefs.OtherCharacters()) do
@@ -295,10 +296,10 @@ function KeptLists.Build(panel)
     end,
     detail = function(key)
       if not key then return "" end
-      return "Adds " .. KeptLists.CountText(Prefs.ImportCounts(key)) .. ". Keep choices replace matching Sell choices. Other entries stay."
+      return "Adds " .. KeptLists.CountText(Prefs.ImportCounts(key)) .. "."
     end,
     buttonText = "Add to my lists",
-    buttonTooltip = "Adds their kept items, Sells and blocked places to yours when you press Apply.",
+    buttonTooltip = "Adds their kept items, remembered Sell choices and blocked places to yours when you press Apply. Keep choices replace matching Sell choices; everything else of yours stays.",
     onClick = function(key, window)
       if key then Stage(window, Prefs.AddEdit(window:Get(KeptLists.KEY), "import", key)) end
     end,
@@ -309,7 +310,7 @@ function KeptLists.Build(panel)
     count = function(window) return KeptLists.Count(window:Get(KeptLists.KEY), "keep") end })
   List(panel, "keep", {
     removeTooltip = "Stop keeping it: Loot Sweeper may list future copies again.",
-    empty = { title = "Nothing kept yet", text = "Right-click an item in the Loot Sweeper window and choose Keep.",
+    empty = { title = "Nothing kept yet", text = "Right-click an item in the Loot Sweeper window and choose Keep every copy.",
               icon = ICONS.keep },
   })
 

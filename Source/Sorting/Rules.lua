@@ -5,8 +5,9 @@
 --   { bucket = "vendor" | "post" | "keep", reason, hard, value, vendorValue, ahValue }
 --   reason   the short "Why" text the window shows (our own words)
 --   hard     true when a player's Sell choice cannot move it (a protection)
---   value    what the row's value column shows (vendor lot for Vendor and
---            Keep, the AH lot after the cut for Post)
+--   value    the row's headline gold (vendor lot for Vendor and Keep, the AH
+--            lot after the cut for Post): what the tiles total and the
+--            default order uses
 -- settings: { postMinCopper, postRatio, cut, keepUpgrades, gearMargin, keepWarboundGear,
 --             boeVendorPercent, boeMinCopper }
 -- remembered: pref is the item's remembered Sell, not this copy's own
@@ -33,7 +34,7 @@
 -- possible upgrade is never offered for auction either: only gear clearly
 -- below what is worn where it would go (the item level its upgrade track
 -- can reach, under the worn level less the margin) is offered; a set piece
--- or one the game can convert from this expansion, gear for another spec
+-- from this expansion, gear the game can convert, gear for another spec
 -- of the class above that line, and this expansion's warbound-until-
 -- equipped gear stay. Gear no spec of the class can use is judged like any
 -- other item. An item level that can't be read is a protection; the rest

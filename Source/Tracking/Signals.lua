@@ -2,14 +2,13 @@
 -- Signals: what the game says about where loot came from (diagnostics only)
 --
 -- Records the events a later build may use as receipts for quest, world
--- quest, delve and open-world loot (AllContent-Plan.md, sections 2 and 7),
--- and claims nothing: which ones fire, in what order against the bag change,
+-- quest, delve and open-world loot, and claims nothing: which ones fire, in what order against the bag change,
 -- and whether their values are readable or secret in 12.x. Kept in the
 -- character's diag table (Check Sweep reports it):
 --   diag.signals = {
 --     counts = { [event] = { seen, secret } },
 --     trace  = { { e, t, f, bagBefore, bagAfter }, ... }   the last TRACE_MAX
---     delve  = { at, active, lair, type, difficulty, mapID }   the last delve check
+--     delve  = { why, at, active, lair, type, difficulty, mapID }   the last delve check
 --   }
 --   f          the payload's readable fields ("secret" for a secret one)
 --   bagBefore  seconds since the last bag change, when one came within BAG_WINDOW
@@ -136,7 +135,7 @@ function Signals.Record(s, event, fields, secret, now)
   return line
 end
 
--- A bag change: the lines waiting for one learn how long after they it came
+-- A bag change: the lines waiting for one learn how long after them it came
 function Signals.OnBagChange(s, now)
   lastBagAt = now
   for i = #s.trace, 1, -1 do

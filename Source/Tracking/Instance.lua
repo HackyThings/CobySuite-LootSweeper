@@ -2,7 +2,7 @@
 -- Instance: is this a dungeon or raid from a past expansion? (design section 6)
 --
 -- Evaluate() returns
---   { eligible, name, instanceMapID, journalID, expansion, difficultyID, reason }
+--   { eligible, name, instanceType, instanceMapID, journalID, expansion, difficultyID, reason }
 -- eligible is true only for a party or raid instance on the shipped list
 -- (Data.Instances) whose expansion is older than the server's, and none of
 -- the exclusions: Mythic+ (difficulty 8, or a challenge running),
@@ -85,7 +85,7 @@ function Instance.IsKeystone(info)
 end
 
 -- Offerable(info): current content Loot Sweeper offers to track (it never
--- starts by itself there; AllContent-Plan.md section 5): a dungeon or raid
+-- starts by itself there): a dungeon or raid
 -- from this expansion, or not on the old-content list, or an old dungeon in
 -- this season's Mythic+ pool outside a keystone; or a delve or lair.
 -- Never a keystone run, Timewalking or a Remix character

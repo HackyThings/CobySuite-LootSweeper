@@ -4,7 +4,7 @@
 -- The suite's standard settings window (CobySuite.UI.CreateSettingsWindow),
 -- the suite's standard size (680 x 480), built from the suite's styled rows: categories
 -- Protection, At the vendor, Auction house, Runs and Your lists
--- (the settings redesign notes, with their review decisions), a Guide button beside Defaults, staged edits that Apply
+-- a Guide button beside Defaults, staged edits that Apply
 -- writes through Config.Set, Cancel, and Defaults. Built at load, so opening
 -- it never creates frames in combat; the controls are painted from config on
 -- every show, and a ConfigChanged event repaints an open window. Examples
@@ -98,7 +98,7 @@ local function BuildProtection(panel)
     minLabel = "0", maxLabel = "30", enabledWhen = GearOn,
     description = "0 protects only gear at or above what you wear.",
   }
-  panel:Preview{ caption = "Example", text = Config.GearExample, dimWhen = function(get) return not GearOn(get) end }
+  panel:Preview{ caption = "Example", text = Config.GearExample, font = U.Fonts.BODY, dimWhen = function(get) return not GearOn(get) end }
   panel:Checkbox{
     key = Opt.KEEP_WARBOUND_GEAR, label = "Protect this expansion's warbound gear",
     description = "Gear that is warbound until equipped stays protected, since another of your characters might wear it.",
@@ -153,18 +153,18 @@ local function BuildAuction(panel)
     numeric = true, digits = true, width = 80,
     description = "For loot other than Bind-on-Equip items: after the 5% cut, and at least twice what a vendor pays.",
   }
-  panel:Preview{ caption = "Example", text = Config.PostExample }
+  panel:Preview{ caption = "Example", text = Config.PostExample, font = U.Fonts.BODY }
   panel:Slider{
     key = Opt.BOE_VENDOR_PERCENT, label = "Vendor Bind-on-Equip items within this much of their AH value (%)",
     min = 0, max = 50, step = 1, minLabel = "0", maxLabel = "50",
     description = "Posting isn't worth it when a vendor pays nearly as much. Possible upgrades stay protected either way, and vendoring needs a fresh Auctionator price.",
   }
   panel:Input{
-    key = Opt.BOE_MIN_GOLD, label = "...and when the auction house pays less than this much more", unit = "gold",
+    key = Opt.BOE_MIN_GOLD, label = "Also vendor Bind-on-Equip items when the AH pays less than this much more", unit = "gold",
     numeric = true, digits = true, width = 80,
-    description = "A few gold over vendor isn't worth a listing either.",
+    description = "After the 5% cut, compared with the vendor price. A few gold more isn't worth a listing.",
   }
-  panel:Preview{ caption = "Example", text = Config.BoEExample }
+  panel:Preview{ caption = "Example", text = Config.BoEExample, font = U.Fonts.BODY }
   panel:Section("Fresh prices", { icon = ICONS.watch })
   panel:Dropdown{
     key = Opt.MAX_PRICE_AGE_DAYS, label = "Trust an Auctionator price for",
@@ -185,10 +185,16 @@ end
 
 local function BuildRuns(panel)
   panel:Section("Tracking", { icon = ICONS.map })
-  panel:Note{ text = "Runs start by themselves in dungeons and raids from past expansions. Anywhere else, press Start in the window or type /ls start." }
+  panel:Note{ text = "Runs start by themselves in dungeons and raids from past expansions. Anywhere else, press Start run in the window or type /ls start." }
   panel:Checkbox{
     key = Opt.ANNOUNCE, label = "Say in chat when a run starts and ends",
     description = "The end line sums up what is waiting.",
+  }
+  -- Current content asks in chat; this adds the toast with its buttons (Task #252)
+  panel:Checkbox{
+    key = Opt.OFFER_TOAST, label = "Ask with a notice in this season's dungeons, raids and delves",
+    description = "Off: a chat line asks, and its [Track this run] link opens the choices. On: a notice near the top of the screen asks too, with the choices on it.",
+    tooltip = "Loot Sweeper doesn't track this season's content until you say yes, so it asks first. Old dungeons and raids start by themselves and never ask.",
   }
 end
 
@@ -225,7 +231,7 @@ local window = UI.CreateSettingsWindow({
   },
 })
 
--- For Source/Tests/Verify's staged-value scenes (stage, look, then Cancel)
+-- For the staged-value scenes (Verify) and the Screens suite (stage, look, then Cancel)
 Config._test = { window = window }
 
 -------------------------------------------------------------------------------

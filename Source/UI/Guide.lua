@@ -17,11 +17,11 @@ Guide.SECTIONS = {
       summary = "Walk into an old dungeon or raid; tracking starts by itself",
       body = { T.Bullets({
         "Enter a dungeon or raid from a past expansion. A line in chat says tracking has started.",
-        "Farm as usual. Nothing pops up while you play.",
+        "Farm as usual. Nothing gets in your way while you play.",
         "Leave the instance and a line sums up what is waiting.",
         "Loot waits run by run, through logouts. The picker over the list shows " .. GOLD .. "All runs|r or one run.",
-        "In this season's content, click " .. GOLD .. "[Track this run]|r when it's offered: " .. GOLD .. "Yes, always here|r, " .. GOLD .. "Yes, this time|r or " .. GOLD .. "No|r.",
-        "Timewalking, Mythic+ keystone runs and Remix characters are never offered. Press " .. GOLD .. "Start|r there if you want them tracked.",
+        "In this season's content, a chat line asks whether to track the run: click " .. GOLD .. "[Track this run]|r and choose " .. GOLD .. "Yes, always here|r, " .. GOLD .. "Yes, this time|r or " .. GOLD .. "No|r. Settings, Runs can ask with a notice on screen too.",
+        "Timewalking, Mythic+ keystone runs and Remix characters are never offered. Press " .. GOLD .. "Start run|r there if you want them tracked.",
       }) },
       try = { { "/ls", "Open the Loot Sweeper window any time" } },
     },
@@ -72,10 +72,10 @@ Guide.SECTIONS = {
       key = "choices", title = "Your own choices", icon = "Interface\\Icons\\INV_Misc_Note_01",
       summary = "Keep, Sell and Ignore one item",
       body = { T.Bullets({
-        "Right-click a row: " .. GOLD .. "Keep|r hides every copy of that item for good on this character.",
+        "Right-click a row: " .. GOLD .. "Keep every copy|r hides that item for good on this character, or on every character while your lists are shared.",
         "" .. GOLD .. "Sell|r marks the row's copies for selling at a vendor. Some protections can't be overridden.",
         "Tick " .. GOLD .. "Remember Sell for future copies|r to reuse it; future gear still gets upgrade checks. " .. GOLD .. "Automatic|r restores the normal rules.",
-        "" .. GOLD .. "Ignore|r hides one copy; the " .. GOLD .. "Ignored|r tab brings it back.",
+        "" .. GOLD .. "Ignore|r hides that row's copies; the " .. GOLD .. "Ignored|r tab brings them back.",
         "" .. GOLD .. "/ls kept|r lists what you keep, remembered Sells and blocked places. Copy another character's, or share one set.",
         "A token for your class: right-click it, pick " .. GOLD .. "Use token...|r, then " .. GOLD .. "Use|r. The piece joins the token's run.",
         "Banking, equipping, mailing or trading an item stops tracking that copy.",
@@ -86,18 +86,18 @@ Guide.SECTIONS = {
       summary = "Everything your runs looted, and the gold it made",
       body = { T.Bullets({
         "The " .. GOLD .. "History|r tile lists every item your runs looted: when, which run, and what became of it.",
-        "The top line counts what was looted, sold and deleted, and the gold selling made. The run picker narrows it to one run.",
+        "The top line counts what was looted, sold and deleted, and the gold made, including sales you or another addon made at a vendor. The run picker narrows it to one run.",
         "Search by item or run name. " .. GOLD .. "Clear history|r empties the tab; loot still waiting stays.",
       }) },
     },
     {
       key = "manual", title = "Other farming", icon = "Interface\\Icons\\INV_Misc_PocketWatch_01",
-      summary = "Start and Stop by hand anywhere",
+      summary = "Start run and Stop run by hand anywhere",
       body = { T.Bullets({
-        "Press " .. GOLD .. "Start|r in the window before farming anywhere else, and " .. GOLD .. "Stop|r when done.",
+        "Press " .. GOLD .. "Start run|r in the window before farming anywhere else, and " .. GOLD .. "Stop run|r when done.",
         "Stopping inside an old instance keeps it from starting again until you next go in.",
         "To never track a place, right-click the banner at the top of the window and pick " .. GOLD .. "Never track here|r (or type " .. GOLD .. "/ls block|r there).",
-        "" .. GOLD .. "Forget remaining loot|r (or " .. GOLD .. "Forget this run|r) stops tracking it; the items stay in your bags.",
+        "" .. GOLD .. "Forget remaining loot|r (or " .. GOLD .. "Forget this run|r) stops listing that loot for good; the items stay in your bags, and a run being tracked carries on.",
       }) },
       try = {
         { "/ls start", "Start a run here" }, { "/ls stop", "End the run" },
@@ -111,23 +111,20 @@ Guide.SECTIONS = {
       body = { T.Bullets({
         "" .. GOLD .. "/ls settings|r, or right-click the minimap addon list entry, opens them.",
         "Pages: Protection, At the vendor, Auction house, Runs and Your lists.",
-        "Changes wait for " .. GOLD .. "Apply|r. " .. GOLD .. "Cancel|r throws them away; " .. GOLD .. "Defaults|r asks first.",
+        "Changes wait for " .. GOLD .. "Apply|r. " .. GOLD .. "Undo edits|r throws them away; " .. GOLD .. "Defaults|r asks first.",
       }) },
     },
 }
 
 local guide = CobySuite_CobysLootSweeper.UI.CreateGuideWindow({
   name = "CobysLootSweeperGuideWindow",
-  title = "Coby's Loot Sweeper Guide",
+  title = U.WrapColor(CobysLootSweeper.BRAND_COLOR, "Coby's Loot Sweeper") .. " Guide",
   icon = CobysLootSweeper.ICON,
   intro = "New here? Start with the first section. Click any heading to open or close it.",
   footer = "Open this guide any time with " .. U.WrapColor(U.Colors.HELP_COMMAND, "/ls guide"),
   sections = Guide.SECTIONS,
   persist = { svTable = function() return COBYS_LOOT_SWEEPER_WINDOW_STATE end, key = "guideWindow" },
 })
-
--- The window, for the suites
-Guide._test = { window = guide }
 
 function Guide.Toggle() guide:Toggle() end
 

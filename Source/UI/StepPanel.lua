@@ -13,8 +13,8 @@
 -- needs the vendor open) or still deletable (Rules.Deletable). The panel
 -- moves on once the item has left the bags.
 --
--- Deleting: ClearCursor, pick the item up, check the cursor holds that very
--- item, DeleteCursorItem(). The game allows that only inside a click, so
+-- Deleting: ClearCursor, pick the item up, check the cursor holds that item
+-- ID, DeleteCursorItem(). The game allows that only inside a click, so
 -- every delete is the player's own click on Delete; nothing is deleted by
 -- itself. A delete is permanent (no buyback), which the panel says.
 -------------------------------------------------------------------------------
@@ -28,7 +28,9 @@ local Utilities = CobysLootSweeper.Utilities
 StepPanel.WAIT = 2.0
 StepPanel.POLL = 0.1
 
-local WIDTH, HEIGHT, PAD = 420, 286, 16
+-- The panel fits its content: the price block makes a sale step taller than
+-- a delete step or the closing summary (Task #235)
+local WIDTH, HEIGHT, SHORT_HEIGHT, PAD = 420, 286, 200, 16
 
 local seams = {
   InCombat = function() return InCombatLockdown() end,
@@ -139,6 +141,17 @@ local function QualityHex(quality)
   return c and c.hex or ("|cFF" .. U.ColorToHex(U.Colors.HIGHLIGHT_WHITE))
 end
 
+-- Why the step's action can't run now, or nil when it can
+function StepPanel.Blocked(mode)
+  if seams.InCombat() then return mode == "delete" and "Leave combat to delete." or "Leave combat to sell." end
+  if mode == "delete" then
+    if CobysLootSweeper.Seller.IsBusy() then return "Finish or stop selling before deleting." end
+  elseif not CobysLootSweeper.Seller.MerchantReady() then
+    return "Open a vendor to sell."
+  end
+  return nil
+end
+
 local function Paint(note)
   if not panel or not session then return end
   local row = Current()
@@ -154,6 +167,7 @@ local function Paint(note)
     panel.Action:Hide()
     panel.Skip:Hide()
     panel.Stop:SetText("Close")
+    panel:SetHeight(SHORT_HEIGHT)
     return
   end
   local facts = row.facts
@@ -182,17 +196,21 @@ local function Paint(note)
   end
   local selling = session.mode == "sell"
   for _, f in ipairs(panel.PriceParts) do f:SetShown(selling) end
+  panel:SetHeight(selling and HEIGHT or SHORT_HEIGHT)
   -- The note sits under the prices when they show, under the icon when not
   panel.Warning:ClearAllPoints()
   panel.Warning:SetPoint("TOPLEFT", panel.Icon, "BOTTOMLEFT", 0, selling and -78 or -12)
   panel.Warning:SetPoint("RIGHT", panel, "RIGHT", -PAD, 0)
+  -- A greyed button says why, above the item's own note (Task #235)
+  local blocked = StepPanel.Blocked(session.mode)
+  if not note and blocked and not session.busy then
+    panel.Warning:SetText(blocked .. (panel.Warning:GetText() ~= "" and ("\n" .. panel.Warning:GetText()) or ""))
+  end
   if note then panel.Warning:SetText(note) end
   panel.Action:Show()
   panel.Skip:Show()
   panel.Stop:SetText("Stop")
-  local ready = not session.busy and not seams.InCombat()
-    and (session.mode ~= "sell" or CobysLootSweeper.Seller.MerchantReady())
-  panel.Action:SetEnabled(ready)
+  panel.Action:SetEnabled(not session.busy and blocked == nil)
   panel.Skip:SetEnabled(not session.busy)
 end
 
@@ -220,6 +238,11 @@ function StepPanel.DeleteCurrent()
   if CobysLootSweeper.Utilities.Guarded("delete") then return end
   local row = Current()
   if not row or session.busy then return false end
+  -- A sale in progress would see the delete as another seller and stop
+  if CobysLootSweeper.Seller.IsBusy() then
+    Paint("Finish or stop selling before deleting.")
+    return false
+  end
   local bag, slot = StepPanel.Verify("delete", row)
   if not bag then
     Paint(SKIP_TEXT[slot] or "It can't be deleted now.")
@@ -303,7 +326,8 @@ end
 local function Build()
   if panel or seams.InCombat() then return end
   panel = UI.CreateWindow({
-    name = "CobysLootSweeperStepPanel", title = "Coby's Loot Sweeper", icon = CobysLootSweeper.ICON,
+    name = "CobysLootSweeperStepPanel", title = U.WrapColor(CobysLootSweeper.BRAND_COLOR, "Coby's Loot Sweeper"),
+    icon = CobysLootSweeper.ICON,
     width = WIDTH, height = HEIGHT, strata = "DIALOG", escapeCloses = true,
     point = { "CENTER", UIParent, "CENTER", 0, 140 },
   })
@@ -325,6 +349,16 @@ local function Build()
   panel.Detail:SetPoint("TOPLEFT", panel.Name, "BOTTOMLEFT", 0, -6)
   panel.Detail:SetPoint("RIGHT", panel, "RIGHT", -PAD, 0)
   panel.Detail:SetJustifyH("LEFT")
+  -- Hovering the icon or the name shows the item, to judge it before acting
+  panel.Hover = CreateFrame("Frame", nil, panel)
+  panel.Hover:SetPoint("TOPLEFT", panel.Icon, "TOPLEFT")
+  panel.Hover:SetPoint("BOTTOMLEFT", panel.Icon, "BOTTOMLEFT")
+  panel.Hover:SetPoint("RIGHT", panel, "RIGHT", -PAD, 0)
+  panel.Hover:EnableMouse(true)
+  UI.AddItemTooltip(panel.Hover, function()
+    local row = Current()
+    return row and (row.facts.link or row.facts.itemID) or nil
+  end, "ANCHOR_RIGHT")
   -- The prices: two rows with the game's coins, the difference, the age
   local function Label(text, y)
     local fs = panel:CreateFontString(nil, "OVERLAY", U.Fonts.BODY)
@@ -373,7 +407,6 @@ local function Build()
     tooltip = "Close this panel. Everything not done yet stays in your bags." })
   panel:HookScript("OnHide", function() session = nil end)
   panel:Hide()
-  StepPanel.panel = panel
 end
 
 -- Open(mode, rows, title, note): false when there is nothing to step through or
@@ -390,7 +423,7 @@ end
 
 function StepPanel._test.Session() return session end
 
--- Repaint when the vendor, combat or the seller changes what can be done
+-- Repaint when the vendor or the seller changes what can be done
 local listener = {}
 function listener:ReceiveEvent()
   if session and not session.busy then Paint() end
