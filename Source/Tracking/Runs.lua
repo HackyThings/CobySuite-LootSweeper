@@ -3,7 +3,7 @@
 --
 -- A run starts by itself on entering a dungeon or raid from a past expansion,
 -- or a current-content place the player allowed (Runs.Tracked), and ends on
--- leaving it; Start and Stop run one by hand anywhere. Stopping inside an
+-- leaving it; Start and Stop Run one by hand anywhere. Stopping inside an
 -- eligible instance keeps it from starting again until the next entry. A run
 -- always starts after a complete read, so what the player carries at that
 -- moment is the baseline (design section 3).
@@ -23,7 +23,7 @@
 --   nextRunId, suppressedMapID
 --   keepsMoved true once the 0.0.1 one-copy Keeps were let go (Prefs: a
 --              Keep now covers every copy of the item and hides it)
---   diag       counters for the Check Sweep report
+--   diag       counters the development reads report (signals, fences, loot chat, the guid sample)
 --   history    History.lua's records and totals
 --   reviewedAt when the window last showed (the vendor button's shimmer)
 -------------------------------------------------------------------------------
@@ -65,7 +65,7 @@ local retryScheduled = false
 local vetoes = 0
 local expect = nil   -- a token used from Loot Sweeper: what it gives joins its run
 -- This visit's offer for current content: the instance, the offer made
--- (its info, or true once answered) and a "Yes, this time"
+-- (its info, or true once answered) and a "Yes, This Time"
 local visit = { mapID = nil, offered = nil, once = nil }
 
 Runs.CONVERSION_WAIT = 10   -- seconds a used token's item may take to arrive
@@ -228,7 +228,7 @@ local function MissesCarried(ledger, read)
 end
 
 -- A fence the game says is gone closes before the read (Task #109); while
--- one holds a run's arrivals back, the log and Check Sweep name the window
+-- one holds a run's arrivals back, the log and the development reads name the window
 local function FenceNotes(char)
   char.diag.fences = char.diag.fences or {}
   return char.diag.fences
@@ -474,7 +474,7 @@ BeginRun = function(p)
   char.run = {
     id = id, kind = p.kind, name = name, startedAt = seams.Time(),
     instanceMapID = p.info and p.info.instanceMapID or nil,
-    once = p.once == true or nil,   -- "Yes, this time": kept across a /reload (RUN-01)
+    once = p.once == true or nil,   -- "Yes, This Time": kept across a /reload (RUN-01)
   }
   char.runs[id] = { name = name, kind = p.kind, startedAt = char.run.startedAt }
   Debug().Log("RUN", "Run %d started (%s) in %s", id, p.kind, tostring(name))
@@ -485,15 +485,16 @@ end
 local function Summary(name)
   local pile = CobysLootSweeper.Pile
   local s = pile and pile.Summary and pile.Summary()
-  if not s or (s.vendor.count + s.post.count + s.keep.count) == 0 then
+  if not s or (s.vendor.count + s.post.count + s.keep.count + (s.cantsell and s.cantsell.count or 0)) == 0 then
     return string.format("%s finished. No loot is waiting.", name)
   end
   local parts = {}
   if s.vendor.count > 0 then
     parts[#parts + 1] = string.format("%d to sell (%s)", s.vendor.count, Utilities.Money(s.vendor.value))
   end
-  if s.post.count > 0 then parts[#parts + 1] = string.format("%d worth posting", s.post.count) end
+  if s.post.count > 0 then parts[#parts + 1] = string.format("%d sellables", s.post.count) end
   if s.keep.count > 0 then parts[#parts + 1] = string.format("%d protected", s.keep.count) end
+  if s.cantsell and s.cantsell.count > 0 then parts[#parts + 1] = string.format("%d cannot be sold", s.cantsell.count) end
   return string.format("%s finished. Waiting from all your runs: %s.", name, table.concat(parts, ", "))
 end
 
@@ -528,7 +529,7 @@ function Runs.OnEnteringWorld(isLogin, isReload)
   end
   local info = Instance.Evaluate()
   Debug().Log("RUN", "Entered %s: eligible=%s (%s)", tostring(info.name), tostring(info.eligible), tostring(info.reason))
-  -- A new place ends this visit's offer and its "Yes, this time"
+  -- A new place ends this visit's offer and its "Yes, This Time"
   if visit.mapID ~= info.instanceMapID then visit.mapID, visit.offered, visit.once = info.instanceMapID, nil, nil end
   -- A /reload or login in the instance of a run started with "Yes, this
   -- time" is still that visit (review 2026-10-01, RUN-01)
@@ -568,7 +569,7 @@ end
 -- first build's line in game, 2026-10-01), one chat line with the addon's
 -- icon and a [Track this run] link, plus TrackOffer's chirp (and its toast,
 -- only with offerToast on); the link opens the prompt, the toast asks in
--- place: Yes, always here / Yes, this time / No
+-- place: Yes, Always Here / Yes, This Time / No
 -------------------------------------------------------------------------------
 Runs.OFFER_RECHECK = 2
 Runs.OFFER_DELAY = 6
@@ -667,12 +668,14 @@ function Runs.Stop()
     return false
   end
   local info = Instance.Evaluate()
-  if info.eligible then char.suppressedMapID = info.instanceMapID end
+  -- Any place tracked by itself (old content, the allow list, Yes this time)
+  -- stays stopped until the player leaves (RUN-01, Task #311)
+  if Runs.Tracked(info) then char.suppressedMapID = info.instanceMapID end
   Runs.EndRun("stopped")
   return true
 end
 
--- Forget remaining loot: the pile (or one run's part of it, runId; 0 for
+-- Forget Remaining Loot: the pile (or one run's part of it, runId; 0 for
 -- loot with no run) empties; the items are just the player's
 function Runs.Forget(runId)
   if CobysLootSweeper.Utilities.Guarded("forget") then return end
@@ -863,21 +866,28 @@ function Runs._test.PendingStart() return pendingStart end
 function Runs._test.Save()
   return { resyncPending = resyncPending, pendingStart = pendingStart, preparing = preparing,
            retryScheduled = retryScheduled, vetoes = vetoes, expect = expect,
-           visit = { mapID = visit.mapID, offered = visit.offered, once = visit.once } }
+           visit = { mapID = visit.mapID, offered = visit.offered, once = visit.once },
+           readPending = reconcileTimer:IsPending() }
 end
 function Runs._test.Restore(saved)
   resyncPending, pendingStart, preparing = saved.resyncPending, saved.pendingStart, saved.preparing
   retryScheduled, vetoes, expect = saved.retryScheduled, saved.vetoes, saved.expect
   -- The real offer (the same object: its delayed announcement checks it)
-  -- and "Yes, this time" come back too (review 2026-10-01, TEST-01)
+  -- and "Yes, This Time" come back too (review 2026-10-01, TEST-01)
   local v = saved.visit or {}
   visit.mapID, visit.offered, visit.once = v.mapID, v.offered, v.once
+  -- A read the suite's own steps queued would run later against whatever
+  -- character a later suite swaps in (one without ledger.gone failed in the
+  -- Seller suite, Task #311); a read the real addon had queued comes back
+  reconcileTimer:Cancel()
+  if saved.readPending then reconcileTimer:Call() end
 end
 
 -- When a fence's tail runs out, one read settles it
 Fences.SetTailCallback(function() Runs.RequestReconcile() end)
 
 local frame = CreateFrame("Frame")
+Runs.eventFrame = frame   -- the development probes time its handler (a field costs nothing per call)
 for event in pairs(handlers) do frame:RegisterEvent(event) end
 frame:SetScript("OnEvent", function(_, event, ...)
   local handler = handlers[event]

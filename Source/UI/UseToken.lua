@@ -1,8 +1,8 @@
 -------------------------------------------------------------------------------
--- UseToken: use a class token from a loot row's "Use token..." menu
+-- UseToken: use a class token from a loot row's "Use Token..." menu
 --
 -- Using an item is a protected action: addon code can't use one, and a menu
--- entry can't make the secure click itself. So the row menu's "Use token..."
+-- entry can't make the secure click itself. So the row menu's "Use Token..."
 -- opens this small window, whose Use button is an insecure action button
 -- (type "item", the token's bag and slot): the player's own click on it uses
 -- the token on the secure path, as Recollect's Show Achievement prompt runs
@@ -16,7 +16,7 @@
 -- a vendor is open. So the button is armed (type "item") only while no vendor
 -- is open and out of combat, and checked again right before every click
 -- (PreClick): a vendor open then disarms it before the action runs. With a
--- vendor open the button reads "Close vendor" and closes it (HideUIPanel, the
+-- vendor open the button reads "Close Vendor" and closes it (HideUIPanel, the
 -- panel manager's own path); the next click uses the token. Combat disarms it
 -- as it starts (PLAYER_REGEN_DISABLED comes before the lockdown), since no
 -- attribute can change in combat; it is armed again when combat ends.
@@ -91,7 +91,7 @@ function UseToken.Aim()
   end
   if seams.MerchantOpen() then
     Disarm()
-    dialog.Use:SetText("Close vendor")
+    dialog.Use:SetText("Close Vendor")
     dialog.Use:Enable()
     dialog.Body:SetText(UseToken.VENDOR_BODY)
     dialog.mode = "vendor"
@@ -116,7 +116,7 @@ function UseToken.PreClick()
   end
 end
 
--- After the click: a disarmed "Close vendor" press closes the vendor
+-- After the click: a disarmed "Close Vendor" press closes the vendor
 function UseToken.PostClick()
   if not dialog then return end
   if dialog.mode == "vendor" then
@@ -176,6 +176,9 @@ local function Build()
   dialog:Hide()
   UseToken.dialog = dialog
 end
+
+-- The window, nil if it was never built (the windows reset puts it back)
+function UseToken.Frame() return dialog end
 
 -- Open(row): the window for one token row (a grouped row uses its first copy)
 function UseToken.Open(row)

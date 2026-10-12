@@ -22,9 +22,9 @@ local SCROLLBAR_WIDTH = 10
 
 local COLUMNS = {
   { key = "when", label = "When", width = 110, sortable = true },
-  { key = "name", label = "Item", width = 190, sortable = true },
+  { key = "name", label = "Item", width = 320, sortable = true },
   { key = "ilvl", label = "iLvl", width = 44, justify = "RIGHT", sortable = true, tooltip = "Item level, for gear" },
-  { key = "run", label = "Run", width = 130, sortable = true },
+  { key = "run", label = "Run", width = 100, sortable = true },
   { key = "outcome", label = "What happened", stretch = true, sortable = true },
 }
 
@@ -156,10 +156,10 @@ function HistoryView.MenuFor(rec)
 end
 
 -- A History row's right-click: Ignore or Un-ignore that copy
-function HistoryView.ShowMenu(owner, rec)
+function HistoryView.ShowMenu(owner, rec, anchor)
   local action = HistoryView.MenuFor(rec)
   if not action then return end
-  MenuUtil.CreateContextMenu(owner, function(_, root)
+  CobysLootSweeper.UI.OpenMenu(owner, function(_, root)
     root:CreateTitle(Name(rec))
     if action == "ignore" then
       root:CreateButton("Ignore", function()
@@ -170,7 +170,7 @@ function HistoryView.ShowMenu(owner, rec)
     else
       root:CreateButton("Un-ignore", function() CobysLootSweeper.Runs.Unignore(rec.guid) end)
     end
-  end)
+  end, anchor)
 end
 
 local clearPopup
@@ -211,6 +211,7 @@ function HistoryView.Build(window, top, bottom, barTop)
   header:Init({
     columns = COLUMNS,
     persistenceKey = "history",
+    widthsVersion = 1,
     persistence = { savedVariable = "COBYS_LOOT_SWEEPER_WINDOW_STATE", path = "columns" },
     utilities = U,
     fitToWidth = true,
@@ -244,7 +245,7 @@ function HistoryView.Build(window, top, bottom, barTop)
   local gray = U.Colors.LABEL_GRAY
   v.empty:SetTextColor(gray[1], gray[2], gray[3])
   v.clear = UI.CreateButton(window, {
-    text = "Clear history", size = { 120, 20 }, fontSize = 10,
+    text = "Clear History", size = { 120, 20 }, fontSize = 10,
     point = { "BOTTOMLEFT", window, "BOTTOMLEFT", 14, 11 },
     onClick = ConfirmClear,
     tooltip = "Remove every record and total on this tab. Loot still waiting to be sold stays.",

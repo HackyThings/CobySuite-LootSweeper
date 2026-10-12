@@ -155,8 +155,9 @@ end
 -------------------------------------------------------------------------------
 -- One sale
 -------------------------------------------------------------------------------
--- The target as it is now: bag, slot, or nil and why it is skipped
-local function Verify(target)
+-- The target as it is now: bag, slot, or nil and why it is skipped. A named module
+-- function, not a local, so the Perf probes can reach it (one call per sale check)
+function Seller.Verify(target)
   local bag, slot, info = Bags.Locate(target.guid)
   if not bag then return nil, "gone" end
   if info.itemID ~= target.itemID or info.stackCount ~= target.count then return nil, "changed" end
@@ -237,7 +238,7 @@ Step = function()
   if seams.InCombat() then return Finish("stopped", "Selling stopped for combat. Try again once it ends.") end
   local target = table.remove(queue, 1)
   if not target then return Finish("done", DoneMessage()) end
-  local bag, slot = Verify(target)
+  local bag, slot = Seller.Verify(target)
   if not bag then
     state.skipped = state.skipped + 1
     Fire()

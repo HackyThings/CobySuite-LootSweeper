@@ -1,51 +1,10 @@
--------------------------------------------------------------------------------
--- Rules: Vendor, Post or Keep for one pile entry (pure; design section 7)
---
--- Classify(entry, facts, quote, pref, settings, remembered) returns
---   { bucket = "vendor" | "post" | "keep", reason, hard, value, vendorValue, ahValue }
---   reason   the short "Why" text the window shows (our own words)
---   hard     true when a player's Sell choice cannot move it (a protection)
---   value    the row's headline gold (vendor lot for Vendor and Keep, the AH
---            lot after the cut for Post): what the tiles total and the
---            default order uses
--- settings: { postMinCopper, postRatio, cut, keepUpgrades, gearMargin, keepWarboundGear,
---             boeVendorPercent, boeMinCopper }
--- remembered: pref is the item's remembered Sell, not this copy's own
---
--- Group(facts) splits the Vendor list for the quick-sell buttons: "junk"
--- (gray items), "warbound" (bound to the warband: another character could
--- use it, sold one at a time), "bound" (bound gear), "tradeable" (anything
--- that can still be traded, sold one at a time) and "other" (bound items
--- that aren't gear). A token meant for other classes (Facts.otherClass) is
--- no soft Keep: it sells like any other item.
--- Deletable(entry, facts, pref, settings, remembered) is an item no vendor
--- buys that nothing else protects, which the player may delete one click at
--- a time.
---
--- Keep is decided first. A player's Sell only moves a soft Keep (no recent
--- price, a token for this class or of unknown use, a recipe, a used
--- token's piece whose look isn't collected yet) to Vendor, never past a
--- protection: an unproven or mixed stack, a quest item, an unopened
--- container, an equipment set, a legendary or heirloom, a collectible not
--- yet collected, a look not collected, an item a vendor won't buy, or an AH
--- price over the Post line.
---
--- Gear (GearKeep, AllContent-Plan.md section 3) is decided before Post, so a
--- possible upgrade is never offered for auction either: only gear clearly
--- below what is worn where it would go (the item level its upgrade track
--- can reach, under the worn level less the margin) is offered; a set piece
--- from this expansion, gear the game can convert, gear for another spec
--- of the class above that line, and this expansion's warbound-until-
--- equipped gear stay. Gear no spec of the class can use is judged like any
--- other item. An item level that can't be read is a protection; the rest
--- move with a Sell on that copy, never with a remembered Sell (a later copy
--- of the same item can be much stronger).
--------------------------------------------------------------------------------
+-- Sorting policy: useful unlocks, proven run loot and game sale limits.
+-- "post" remains the internal key for Sellables. No saved tab migration.
 local Rules = {}
 CobysLootSweeper.Rules = Rules
 
-local VENDOR, POST, KEEP = "vendor", "post", "keep"
-Rules.VENDOR, Rules.POST, Rules.KEEP = VENDOR, POST, KEEP
+local VENDOR, POST, KEEP, CANTSELL = "vendor", "post", "keep", "cantsell"
+Rules.VENDOR, Rules.POST, Rules.KEEP, Rules.CANTSELL = VENDOR, POST, KEEP, CANTSELL
 
 local QUALITY_POOR = 0
 local QUALITY_EPIC = 4
@@ -112,66 +71,44 @@ function Rules.PostEstimate(vendor, settings)
   return math.ceil(need / (1 - (settings.cut or CobySuite_CobysLootSweeper.Utilities.AH_CUT)))
 end
 
--- Protections a Sell choice can't move; returns reason or nil
+Rules.UNREAD_REASONS = {
+  quest = "Cannot check whether this is a quest item",
+  set = "Cannot check your saved equipment sets",
+  warbound = "Cannot check this item's binding",
+  collectible = "Cannot check your collection yet",
+  anima = "Cannot check whether this adds anima",
+  ["mount purchase"] = "Cannot check whether you own its Ottuk mount",
+  recipe = "Cannot check whether you can learn this recipe",
+  ["appearance token"] = "Cannot check this token's appearances",
+}
+
+-- Safety holds are separate from the useful purpose shown in Why.
 local function HardKeep(entry, facts)
-  if entry.hold == "mixed" then
-    return string.format("%d new, can't tell from yours", entry.added or 0)
-  end
-  if entry.hold == "interrupted" then return "Couldn't confirm it came from the run" end
-  if not facts.loaded then return "Still loading" end
-  if facts.quest then return "Quest item" end
-  if facts.openable then return "Open it first" end
-  if facts.inSet then return "In an equipment set" end
-  if (facts.quality or 0) >= QUALITY_LEGENDARY then return "Legendary, artifact or heirloom" end
+  if entry.hold == "mixed" then return "Includes items you already had; none of this stack will be sold" end
+  if entry.hold then return "Cannot prove this came from your run; it will not be sold" end
+  if not facts.loaded then return "Waiting for item details" end
+  if facts.unread then return Rules.UNREAD_REASONS[facts.unread] or "Cannot check this item's use yet" end
+  if facts.quest then return "Needed for a quest" end
+  if facts.openable then return "Contains loot; open it first" end
+  if facts.inSet then return "Saved in your equipment set" end
+  if facts.collectible and facts.collectible.collected == nil then return "Waiting for your collection to load" end
+  if facts.appearance == "unknown" then return "Waiting for your appearances to load" end
+end
+
+local function SoftKeep(facts)
+  if facts.purpose then return facts.purpose end
   local c = facts.collectible
-  if c and c.collected ~= true then
-    if c.collected == nil then return (COLLECTIBLE_NAMES[c.kind] or "Collectible") .. ": not sure it's collected" end
-    return (COLLECTIBLE_NAMES[c.kind] or "Collectible") .. " not collected yet"
-  end
-  -- A piece from a used token: the player chose that piece, so its look
-  -- not collected yet is a soft Keep a Sell can move (SoftKeep), not this
-  if facts.appearance == "missing" and not (entry and entry.fromToken) then return "Appearance not collected" end
-  if facts.appearance == "unknown" then return "Appearance not confirmed yet" end
-  return nil
+  if c and c.collected == false then return "You have not collected this " .. (c.kind or "item") end
+  if facts.appearance == "missing" then return "You have not collected this appearance" end
 end
 
--- Soft Keeps a Sell choice may move; returns reason or nil
-local function SoftKeep(facts, entry)
-  if entry and entry.fromToken and facts.appearance == "missing" then
-    return "From a token, look not collected yet"
-  end
-  if facts.classID == CLASS_MISC and (facts.quality or 0) >= QUALITY_EPIC then
-    if facts.classToken then return "Token for your class: right-click to use" end
-    if not facts.otherClass then return "Token or special item" end
-  end
-  if facts.classID == CLASS_RECIPE then return "Recipe" end
-  return nil
+-- The legacy Post key is retained for saved sorts and bulk picks.
+-- Price changes never move items between these lists.
+function Rules.IsSellable(facts)
+  if facts.quality == QUALITY_POOR or facts.bound or facts.accountBound then return false end
+  return Rules.IsBoE(facts) or facts.classID == 5 or facts.classID == 7
+    or facts.classID == 3 or facts.reagent == true
 end
-
--- Gear the player may want: reason, hard; nil when it may be offered
-local function GearKeep(facts, settings)
-  if not facts.gear then return nil end
-  local alt = settings.keepWarboundGear ~= false and facts.warbound and facts.currentExpansion
-    and "Another character might use it" or nil
-  if settings.keepUpgrades == false or facts.forClass == false then return alt end
-  if not facts.reach then return "Item level not read yet", true end
-  if not facts.bar then
-    if facts.barWhy == "empty" then return "Nothing worn there to compare" end
-    return "Your gear's item level not read yet", true
-  end
-  if facts.reach >= facts.bar - (settings.gearMargin or 0) then
-    local level = facts.reach > (facts.level or facts.reach) and string.format("Could reach %d, you wear %d", facts.reach, facts.bar)
-      or string.format("Item level %d, you wear %d", facts.reach, facts.bar)
-    return (facts.forSpec == false and "Another spec: " or "") .. level
-  end
-  -- Upgrades left, but how high they go wasn't given: it might pass
-  if facts.track == "partial" then return "Can still be upgraded" end
-  if facts.currentExpansion and facts.setID then return "Part of a set" end
-  if facts.convertible then return "Can be converted" end
-  if facts.currentExpansion and facts.track ~= "track" then return "Upgrade track not confirmed" end
-  return alt
-end
-Rules.GearKeep = GearKeep
 
 -- Another class's token: its Classes line leaves this class out, or the game
 -- says this character can't use it (Facts.otherClass)
@@ -204,68 +141,55 @@ local function VendorReason(facts, values)
 end
 
 function Rules.Classify(entry, facts, quote, pref, settings, remembered)
-  settings = settings or {}
-  local values = Values(entry, facts, quote or {}, settings)
-  if pref == "keep" then return Out(KEEP, "You chose to keep this", true, values) end
-  local hard = HardKeep(entry, facts)
-  if hard then return Out(KEEP, hard, true, values) end
-  local gear, gearHard = GearKeep(facts, settings)
-  if gear and (gearHard or not (pref == "sell" and not remembered)) then
-    return Out(KEEP, gear, gearHard, values)
+  local values = Values(entry, facts, quote or {}, settings or {})
+  local hard, use = HardKeep(entry, facts), SoftKeep(facts)
+  if pref == "keep" then hard = "You chose to keep this" end
+  -- Lead with the use, even for a mixed stack. The safety detail remains
+  -- available to the menu and tooltip and is checked again before a sale.
+  if hard then
+    local r = Out(KEEP, use or hard, true, values)
+    r.safety = hard
+    return r
   end
-  if Rules.WorthPosting(facts, values, settings) then
-    values.value = values.ah
-    return Out(POST, "AH estimate well above vendor", true, values)
+  if use and not (pref == "sell" and not remembered) then return Out(KEEP, use, false, values) end
+  if Rules.IsSellable(facts) then
+    values.value = values.ah or 0
+    return Out(POST, (facts.hasNoValue or (facts.sellPrice or 0) <= 0) and "Can be auctioned; vendors will not buy it"
+      or (values.ah and "Compare the AH estimate with the vendor price"
+      or "No AH price yet; you can still choose to vendor it"), false, values)
   end
   if facts.hasNoValue or (facts.sellPrice or 0) <= 0 then
-    return Out(KEEP, "Vendors won't buy this", true, values)
+    return Out(CANTSELL, "This item cannot be sold to a vendor", true, values)
   end
-  local soft = SoftKeep(facts, entry)
-  if not soft and not facts.bound and not facts.accountBound and facts.quality ~= QUALITY_POOR
-      and not (quote and quote.fresh) then
-    soft = Rules.NO_PRICE_REASON
-  end
-  if soft then
-    if pref == "sell" then return Out(VENDOR, "You chose to sell this", false, values) end
-    return Out(KEEP, soft, false, values)
-  end
-  return Out(VENDOR, VendorReason(facts, values), false, values)
+  return Out(VENDOR, pref == "sell" and not remembered and "You chose Not Protected"
+    or VendorReason(facts, values), false, values)
 end
 
--- Eligible(entry, facts, quote, pref, settings, remembered, accept): may a
--- bulk sale the player reviewed sell this copy? Walks the same protections
--- as Classify, in the same order, and lifts only the market's reasons: an
--- AH estimate above vendor never holds an item back from a sale the player
--- chose (Cobanyte, Task #121). Items with no recent AH price and warbound
--- items need the player's say (accept.noPrice, accept.warbound). Returns
--- ok, code, reason, flags; code: "kept", "protected", "gear", "novendor",
--- "held", "warbound" or "noprice"; flags: auction (the AH estimate beats
--- vendor), noPrice, warbound, reagent, usable, consumable
-Rules.CLASS_CONSUMABLE = 0
+-- Release only the displayed copies, never an item ID or a safety hold.
+function Rules.CanUnprotect(row, settings)
+  for _, copy in ipairs(row.copies or { row }) do
+    if HardKeep(copy.entry, copy.facts) or copy.pref == "keep" then return false end
+  end
+  return true
+end
 
+Rules.CLASS_CONSUMABLE = 0
 function Rules.Eligible(entry, facts, quote, pref, settings, remembered, accept)
-  settings, accept = settings or {}, accept or {}
-  local values = Values(entry, facts, quote or {}, settings)
+  local row = Rules.Classify(entry, facts, quote, pref, settings, remembered)
   local flags = { reagent = facts.reagent == true, usable = facts.usable == true,
-                  consumable = facts.classID == Rules.CLASS_CONSUMABLE }
-  if pref == "keep" then return false, "kept", "You chose to keep this", flags end
-  local hard = HardKeep(entry, facts)
-  if hard then return false, "protected", hard, flags end
-  local gear, gearHard = GearKeep(facts, settings)
-  if gear and (gearHard or not (pref == "sell" and not remembered)) then return false, "gear", gear, flags end
-  if facts.hasNoValue or (facts.sellPrice or 0) <= 0 then return false, "novendor", "Vendors won't buy this", flags end
-  local soft = SoftKeep(facts, entry)
-  if soft and pref ~= "sell" then return false, "held", soft, flags end
-  if facts.accountBound then
-    flags.warbound = true
-    if not accept.warbound then return false, "warbound", "Warbound: another character might use it", flags end
+    consumable = facts.classID == Rules.CLASS_CONSUMABLE,
+    warbound = facts.accountBound == true,
+    noPrice = Rules.IsSellable(facts) and not (quote and quote.fresh),
+    auction = row.ahValue ~= nil and row.ahValue > row.vendorValue }
+  if row.bucket == KEEP then
+    return false, pref == "keep" and "kept" or (row.hard and "protected" or "held"), row.reason, flags
   end
-  if not facts.bound and not facts.accountBound and facts.quality ~= QUALITY_POOR and not (quote and quote.fresh)
-      and pref ~= "sell" then
-    flags.noPrice = true
-    if not accept.noPrice then return false, "noprice", Rules.NO_PRICE_REASON, flags end
+  if facts.hasNoValue or (facts.sellPrice or 0) <= 0 then
+    return false, "novendor", "This item cannot be sold to a vendor", flags
   end
-  flags.auction = values.ah ~= nil and values.ah > values.vendor
+  if accept and accept.bucket and row.bucket ~= accept.bucket then
+    return false, "tab", "On another tab", flags
+  end
   return true, nil, nil, flags
 end
 
@@ -284,9 +208,7 @@ function Rules.Deletable(entry, facts, pref, settings, remembered)
   if pref == "keep" or not facts.loaded then return false end
   if not (facts.hasNoValue or (facts.sellPrice or 0) <= 0) then return false end
   if HardKeep(entry, facts) then return false end
-  local gear, gearHard = GearKeep(facts, settings or {})
-  if gear and (gearHard or not (pref == "sell" and not remembered)) then return false end
-  if SoftKeep(facts, entry) and pref ~= "sell" then return false end
+  if SoftKeep(facts) and not (pref == "sell" and not remembered) then return false end
   return true
 end
 

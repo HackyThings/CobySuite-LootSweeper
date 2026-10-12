@@ -36,7 +36,7 @@ Bulk.QUALITIES = {
 -- Kinds by item class (Enum.ItemClass); a class not listed is its own kind
 Bulk.KINDS = {
   { key = "consumable", label = "Consumables", classes = { 0 } },
-  { key = "trade", label = "Trade goods and reagents", classes = { 5, 7 } },
+  { key = "trade", label = "Trade goods", classes = { 5, 7 } },
   { key = "armor", label = "Armor", classes = { 4 } },
   { key = "weapon", label = "Weapons", classes = { 2 } },
   { key = "recipe", label = "Recipes", classes = { 9 } },
@@ -55,7 +55,7 @@ Bulk.PRESETS = {
   { key = "greens", label = "Greens", pick = { quality = { [2] = true } } },
   { key = "consumables", label = "Consumables", pick = { kind = { consumable = true } } },
   { key = "materials", label = "Materials", pick = { kind = { trade = true } } },
-  { key = "post", label = "Post items", pick = { post = true } },
+  { key = "post", label = "Sellables", pick = { post = true } },
   { key = "everything", label = "Everything", pick = {} },
 }
 

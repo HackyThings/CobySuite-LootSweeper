@@ -13,6 +13,30 @@
 -------------------------------------------------------------------------------
 CobysLootSweeper.Data.Changelog = {
   {
+    version = "0.0.4",
+    title = "Simpler: Sellables, Can't Sell and Not Protected",
+    date = "2026-10-11",
+    new = {
+      "Sellables tab: trade goods and BoE items with auction prices",
+      "Can't Sell tab: loot no vendor buys",
+      "Not Protected: right-click a Protected row to sell it with the rest",
+      "{/ls} addons: every addon by Cobanyte, with CurseForge links",
+      "{/ls} reset windows: every window back to its default place and size",
+      "Newer version notice: a chat line when someone in your guild or group has a newer version",
+    },
+    changed = {
+      "Protected holds only what could unlock something, and says what for",
+      "Old raid gear and Can be converted gear go to Vendor",
+      "A shorter right-click menu",
+      "History: item names get room (column widths reset once)",
+    },
+    fixed = {
+      "Unreadable protection checks keep the item safe and say which check",
+      "Un-ignored stacks that changed size come back held",
+      "Stop Run stays stopped until you leave",
+    },
+  },
+  {
     version = "0.0.3",
     title = "Asks in chat, and Bulk sell preview",
     date = "2026-10-06",

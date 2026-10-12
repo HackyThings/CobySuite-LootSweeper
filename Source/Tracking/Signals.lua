@@ -4,7 +4,7 @@
 -- Records the events a later build may use as receipts for quest, world
 -- quest, delve and open-world loot, and claims nothing: which ones fire, in what order against the bag change,
 -- and whether their values are readable or secret in 12.x. Kept in the
--- character's diag table (Check Sweep reports it):
+-- character's diag table (the development reads report it):
 --   diag.signals = {
 --     counts = { [event] = { seen, secret } },
 --     trace  = { { e, t, f, bagBefore, bagAfter }, ... }   the last TRACE_MAX
@@ -194,6 +194,7 @@ end
 Signals._test.OnEvent = OnEvent
 
 local frame = CreateFrame("Frame")
+Signals.eventFrame = frame   -- the development probes time its handler (a field costs nothing per call)
 for event in pairs(TRACKED) do frame:RegisterEvent(event) end
 for event in pairs(DELVE) do pcall(frame.RegisterEvent, frame, event) end
 frame:RegisterEvent("BAG_UPDATE_DELAYED")

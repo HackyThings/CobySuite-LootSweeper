@@ -2,14 +2,14 @@
 -- KeptLists: the settings window's "Your lists" page (Prefs' lists), built
 -- from the suite's styled rows (KeptLists.Build, Config/Window.lua)
 --
--- Whose lists (a read-only status, and "Change sharing..." opening the
+-- Whose lists (a read-only status, and "Change Sharing..." opening the
 -- Share or Split dialog, which takes effect when confirmed and drops the
 -- page's unsaved edits first: sharing changes whose lists they apply to),
 -- Copy another character's lists (a dropdown with counts and "Add to my
 -- lists"), then the kept items, the remembered Sell choices, the places
 -- never tracked and the places always tracked, each with a remove x. Removing and importing are
 -- staged edits (KeptLists.KEY, text Prefs.ApplyEdits reads): a staged
--- removal shows struck through with Undo, Apply keeps the edits and Undo edits
+-- removal shows struck through with Undo, Apply keeps the edits and Undo Edits
 -- drops them; Defaults stages nothing.
 -------------------------------------------------------------------------------
 local KeptLists = {}
@@ -126,7 +126,7 @@ function KeptLists.ImportNote(edits)
     end
   end
   if #names == 0 then return nil end
-  return "Importing from " .. table.concat(names, ", ") .. ": press Apply to keep it, or Undo edits."
+  return "Importing from " .. table.concat(names, ", ") .. ": press Apply to keep it, or Undo Edits."
 end
 
 -- "12 kept items, 3 Sells and 2 blocked places"
@@ -152,7 +152,7 @@ function KeptLists.CharacterLabel(c)
 end
 
 -------------------------------------------------------------------------------
--- The share and split dialogs (the status card's "Change sharing..." opens them)
+-- The share and split dialogs (the status card's "Change Sharing..." opens them)
 -------------------------------------------------------------------------------
 local shareDialog, splitDialog
 
@@ -197,18 +197,18 @@ local function OpenSplit(window)
     splitDialog = UI.CreateDialogPopup({
       name = "CobysLootSweeperSplitListsPopup", title = "Give each character its own lists?", width = 440, height = 170,
       icon = CobysLootSweeper.ICON,
-      hidden = true, confirmText = "Copy to every character", cancelText = "Cancel",
+      hidden = true, confirmText = "Copy to Every Character", cancelText = "Cancel",
       body = "Each character can start with a copy of the shared lists, or with empty lists. It happens as soon as you choose; unsaved removals and imports on this page are dropped.",
       onConfirm = function(popup)
         Prefs.UsePerCharacter(true)
         After(popup.window)
       end,
     })
-    -- Copy at the bottom-left (the dialog's confirm), Start empty beside
+    -- Copy at the bottom-left (the dialog's confirm), Start Empty beside
     -- it, Cancel where the dialog puts it, at the bottom-right
     splitDialog.ConfirmButton:SetWidth(170)
     splitDialog.Empty = UI.CreateButton(splitDialog, {
-      text = "Start empty", size = { 110, U.ButtonSize.MEDIUM.height }, point = { "LEFT", splitDialog.ConfirmButton, "RIGHT", 8, 0 },
+      text = "Start Empty", size = { 110, U.ButtonSize.MEDIUM.height }, point = { "LEFT", splitDialog.ConfirmButton, "RIGHT", 8, 0 },
       onClick = function()
         splitDialog:Hide()
         Prefs.UsePerCharacter(false)
@@ -273,7 +273,7 @@ function KeptLists.Build(panel)
       return mode .. " Changing this takes effect as soon as you confirm, not with Apply."
     end,
     actions = {
-      { text = "Change sharing...", width = 160,
+      { text = "Change Sharing...", width = 160,
         tooltip = "Share one set of lists with every character, or give each character its own again.",
         onClick = function(window)
           if Prefs.IsAccountWide() then OpenSplit(window) else OpenShare(window) end
@@ -298,7 +298,7 @@ function KeptLists.Build(panel)
       if not key then return "" end
       return "Adds " .. KeptLists.CountText(Prefs.ImportCounts(key)) .. "."
     end,
-    buttonText = "Add to my lists",
+    buttonText = "Add to My Lists",
     buttonTooltip = "Adds their kept items, remembered Sell choices and blocked places to yours when you press Apply. Keep choices replace matching Sell choices; everything else of yours stays.",
     onClick = function(key, window)
       if key then Stage(window, Prefs.AddEdit(window:Get(KeptLists.KEY), "import", key)) end
@@ -310,7 +310,7 @@ function KeptLists.Build(panel)
     count = function(window) return KeptLists.Count(window:Get(KeptLists.KEY), "keep") end })
   List(panel, "keep", {
     removeTooltip = "Stop keeping it: Loot Sweeper may list future copies again.",
-    empty = { title = "Nothing kept yet", text = "Right-click an item in the Loot Sweeper window and choose Keep every copy.",
+    empty = { title = "Nothing kept", text = "Items you chose to keep for good in an earlier version are listed here.",
               icon = ICONS.keep },
   })
 
@@ -319,7 +319,7 @@ function KeptLists.Build(panel)
   List(panel, "sell", {
     removeTooltip = "Forget the remembered Sell: future copies are sorted as usual.",
     empty = { title = "No remembered Sell choices",
-              text = "Right-click an item, tick Remember Sell for future copies, then choose Sell.", icon = ICONS.sell },
+              text = "Choices from an earlier version are listed here. Not Protected on a Protected row replaces them.", icon = ICONS.sell },
   })
 
   panel:Section("Places never tracked", { icon = ICONS.places,
@@ -327,16 +327,16 @@ function KeptLists.Build(panel)
   List(panel, "places", {
     removeTooltip = "Track it again from your next visit.",
     empty = { title = "No blocked places",
-              text = "Right-click the Loot Sweeper window's banner and choose Never track here, or type /ls block.",
+              text = "Right-click the Loot Sweeper window's banner and choose Never Track Here, or type /ls block.",
               icon = ICONS.places },
   })
 
-  panel:Section("Places always tracked", { icon = ICONS.places, subtitle = "Current content you said Yes, always here to.",
+  panel:Section("Places always tracked", { icon = ICONS.places, subtitle = "Current content where you chose Yes, Always Here.",
     count = function(window) return KeptLists.Count(window:Get(KeptLists.KEY), "allowed") end })
   List(panel, "allowed", {
     removeTooltip = "Ask again next time instead of tracking it by itself.",
     empty = { title = "No current content tracked always",
-              text = "In this season's dungeons, raids and delves, click [Track this run] in chat and choose Yes, always here.",
+              text = "In this season's dungeons, raids and delves, click [Track this run] in chat and choose Yes, Always Here.",
               icon = ICONS.places },
   })
 

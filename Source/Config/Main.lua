@@ -7,7 +7,7 @@ local base = CobySuite_CobysLootSweeper.Config.New({
   savedVariable = "COBYS_LOOT_SWEEPER_CONFIG",
   options = {
     SHOW_AT_MERCHANT = "showAtMerchant",           -- the Loot Sweeper button on the vendor window
-    SHOW_AT_AUCTION_HOUSE = "showAtAuctionHouse",  -- open it beside the auction house when items are worth posting
+    SHOW_AT_AUCTION_HOUSE = "showAtAuctionHouse",  -- open it beside the auction house when Sellables has items
     ANNOUNCE = "announce",                         -- a chat line when a run starts and ends
     STOP_AFTER_12 = "stopAfter12",                 -- pause selling after every 12 sales
     KEEP_UPGRADES = "keepUpgrades",                -- keep gear that isn't clearly below what is worn where it goes (Rules.GearKeep)
@@ -20,6 +20,7 @@ local base = CobySuite_CobysLootSweeper.Config.New({
     BULK_CONFIRM = "bulkConfirm",                  -- ask before a bulk sale
     MAX_PRICE_AGE_DAYS = "maxPriceAgeDays",        -- trust an Auctionator price seen within this many days
     OFFER_TOAST = "offerToast",                    -- current content's Track this run? asks in a toast, not only in chat
+    VERSION_CHECK = "versionCheck",                -- share the version with guild and group, a chat line when a newer one is out
   },
   defaults = {
     ["showAtMerchant"] = true,
@@ -36,6 +37,7 @@ local base = CobySuite_CobysLootSweeper.Config.New({
     ["bulkConfirm"] = true,
     ["maxPriceAgeDays"] = 3,
     ["offerToast"] = false,
+    ["versionCheck"] = true,
   },
   -- Set refuses a failing value and InitializeData puts the default back for
   -- a failing saved one (a hand-edited or damaged file)
@@ -54,6 +56,7 @@ local base = CobySuite_CobysLootSweeper.Config.New({
     ["bulkConfirm"] = { type = "boolean" },
     ["maxPriceAgeDays"] = { type = "number", min = 0, max = 21, integer = true },
     ["offerToast"] = { type = "boolean" },
+    ["versionCheck"] = { type = "boolean" },
   },
   debug = CobysLootSweeper.Debug,
   onSet = function(name, old, value)

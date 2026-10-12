@@ -1,11 +1,11 @@
 -------------------------------------------------------------------------------
 -- BulkSell: the Bulk sell panel (Tasks #120 and #121; the bag cleanup notes)
 --
--- Opened at a vendor from the Vendor tab's "Bulk sell..." or the Post tab's
--- "Vendor these instead...", it sits beside the main window, whose list
--- previews exactly what the pick would sell (Post rows included). On top,
--- the presets as stat tiles (All junk, Greens, Consumables, Materials, Post
--- items, Everything); Customize opens two columns of ticks, by
+-- Opened at a vendor from the Vendor tab's "Bulk Sell..." or the Sellables
+-- tab's "Vendor These Items...", it sits beside the main window, whose list
+-- previews exactly what the pick would sell (the tab's own rows only). On top,
+-- the presets as stat tiles (All junk, Greens, Consumables, Materials,
+-- Sellables, Everything); Customize opens two columns of ticks, by
 -- quality and by kind, each with its count and gold (ticks add up within a
 -- column and narrow across them). Two switches take warbound items and
 -- items with no recent AH price, off by default. Below, the plan: stacks,
@@ -55,17 +55,24 @@ end
 -------------------------------------------------------------------------------
 -- The plan for what is ticked now
 -------------------------------------------------------------------------------
+local saleBucket = "vendor"
+local function Accept(saved)
+  local accept = Bulk().AcceptOf(saved)
+  accept.bucket = saleBucket
+  return accept
+end
+
 function BulkSell.CurrentPlan()
   local saved = Bulk().Saved()
-  return Bulk().Plan(Scope(), Bulk().PickOf(saved), Bulk().AcceptOf(saved)), saved
+  return Bulk().Plan(Scope(), Bulk().PickOf(saved), Accept(saved)), saved
 end
 
 -- The lines under the switches: what it sells, what it counted, what it left out
 local LEFT_WORDS = {
-  protected = "protected", gear = "held as possible upgrades", held = "held for a use", kept = "kept",
+  tab = "on another tab", protected = "protected", gear = "held as possible upgrades", held = "held for a use", kept = "kept",
   novendor = "with no vendor value", warbound = "warbound", noprice = "with no recent AH price",
 }
-local LEFT_ORDER = { "protected", "gear", "held", "kept", "novendor", "warbound", "noprice" }
+local LEFT_ORDER = { "tab", "protected", "gear", "held", "kept", "novendor", "warbound", "noprice" }
 
 function BulkSell.Lines(plan)
   local first = plan.stacks == 0 and "Nothing matches this pick."
@@ -141,7 +148,7 @@ function BulkSell.Sell()
   if InCombatLockdown() or not p.dialog then return false end
   local plan, saved = BulkSell.CurrentPlan()
   if plan.stacks == 0 or not CobysLootSweeper.Seller.MerchantReady() then return false end
-  local accept = Bulk().AcceptOf(saved)
+  local accept = Accept(saved)
   if CobysLootSweeper.Config.Get("bulkConfirm") == false then return Start(plan.rows, accept) end
   ShowConfirm(plan, accept)
   return true
@@ -221,14 +228,6 @@ local function Build()
     end)
     p.qualityBoxes[i].key = q.key
   end
-  p.warbound = UI.CreateCheckbox(f, { label = " ", onChange = function(on)
-    Bulk().Saved().warbound = on == true
-    Changed()
-  end })
-  p.noPrice = UI.CreateCheckbox(f, { label = " ", onChange = function(on)
-    Bulk().Saved().noPrice = on == true
-    Changed()
-  end })
   p.summary = f:CreateFontString(nil, "OVERLAY", U.Fonts.BODY)
   p.notes = f:CreateFontString(nil, "OVERLAY", U.Fonts.SMALL)
   p.left = f:CreateFontString(nil, "OVERLAY", U.Fonts.SMALL)
@@ -296,9 +295,6 @@ function BulkSell.Layout()
     end
     y = y - math.max(rows, shownKinds) * ROW - 8
   end
-  Place(p.warbound, y)
-  Place(p.noPrice, y - ROW)
-  y = y - ROW * 2 - 10
   for _, fs in ipairs({ p.summary, p.notes, p.left }) do
     Place(fs, y, PAD, WIDTH - PAD * 2)
     y = y - math.max(14, fs:GetStringHeight() or 14) - 4
@@ -315,7 +311,7 @@ function BulkSell.Refresh()
   if not (p.frame and p.frame:IsShown()) then return end
   local scope = Scope()
   local saved = Bulk().Saved()
-  local accept = Bulk().AcceptOf(saved)
+  local accept = Accept(saved)
   for _, preset in ipairs(Bulk().PRESETS) do
     local plan = Bulk().Plan(scope, preset.pick, accept)
     p.ctx.presets[preset.key] = { stacks = plan.stacks, copper = plan.copper }
@@ -344,11 +340,6 @@ function BulkSell.Refresh()
     end
   end
   local plan = Bulk().Plan(scope, Bulk().PickOf(saved), accept)
-  local wide = Bulk().Plan(scope, Bulk().PickOf(saved), { warbound = true, noPrice = true })
-  p.warbound:SetChecked(saved.warbound == true)
-  p.warbound.text:SetText(string.format("Include warbound items (%d)", wide.counts.warbound))
-  p.noPrice:SetChecked(saved.noPrice == true)
-  p.noPrice.text:SetText(string.format("Include items with no recent AH price (%d)", wide.counts.noPrice))
   local first, notes, left = BulkSell.Lines(plan)
   p.summary:SetText(first)
   p.notes:SetText(notes)
@@ -362,16 +353,20 @@ function BulkSell.Refresh()
 end
 
 -- Open(presetKey): out of combat, beside the main window; a preset given
--- (the Post tab's "Vendor these instead...") is picked
+-- (the Sellables tab's "Vendor These Items...") is picked
 function BulkSell.Open(presetKey)
   if InCombatLockdown() then
     Utilities.Message("Bulk sell opens out of combat.")
     return false
   end
+  saleBucket = presetKey == "post" and "post" or "vendor"
   if not p.frame then Build() end
   -- One preview at a time: a quick-sell question about other rows goes
   -- (Task #235)
   CobysLootSweeper.QuickSell.CancelConfirm(true)
+  if saleBucket == "vendor" and Bulk().Saved().preset == "post" then
+    Bulk().Saved().preset = "everything"
+  end
   if presetKey and Bulk().Preset(presetKey) then
     local s = Bulk().Saved()
     s.preset, s.custom = presetKey, false
@@ -390,6 +385,9 @@ function BulkSell.Close()
   if p.frame then p.frame:Hide() end
 end
 
+-- The panel's window, nil until it is first opened (the windows reset puts it back)
+function BulkSell.Frame() return p.frame end
+
 -- The main window's run picker moved: a new plan, and no confirmation for
 -- the old one
 function BulkSell.OnScopeChanged()
@@ -403,7 +401,7 @@ BulkSell._test = {
   State = function() return p end,
   ShowConfirm = function()
     local plan, saved = BulkSell.CurrentPlan()
-    ShowConfirm(plan, Bulk().AcceptOf(saved))
+    ShowConfirm(plan, Accept(saved))
   end,
 }
 

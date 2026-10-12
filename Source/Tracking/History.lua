@@ -306,7 +306,7 @@ function History.RunInfo(runId)
   return type(r) == "table" and r or nil
 end
 
--- True when anything is recorded (Clear history has something to clear)
+-- True when anything is recorded (Clear History has something to clear)
 function History.HasAny()
   local h = History.Data()
   return #h.records > 0 or h.totals.looted > 0 or h.totals.copper > 0 or h.totals.deleted > 0

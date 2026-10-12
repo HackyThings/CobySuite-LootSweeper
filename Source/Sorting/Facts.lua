@@ -25,7 +25,7 @@
 --                highest, else its own); nil when its level can't be read
 --   track        gear: "track" (an upgrade track was read, with its highest
 --                level, or fully upgraded), "partial" (upgrades left but no
---                highest level given: Check Sweep, 2026-10-01, saw
+--                highest level given: the in-game check on 2026-10-01 saw
 --                maxItemLevel 0 on a Hero 6/6 piece away from the upgrade
 --                NPC), "none" (the game says it has none) or "unknown"
 --   bar          gear: the item level worn where it would go (the lower of
@@ -36,6 +36,11 @@
 --   forSpec      gear: false when it names this class's specs but not the
 --                current one
 --   convertible  gear: the game says this character can convert it
+--   unread       nil, or the first protection the game wouldn't answer
+--                ("quest", "set", "warbound", "collectible", "convertible": the
+--                call errored or answered in secret); a hard Keep (FACT-01,
+--                Task #311). A real "no" (not a mount, not in a set) is no
+--                failure
 --   expansionID, setID   from the item's info; currentExpansion when its
 --                expansion is the server's
 --   hasUse       it has a Use spell
@@ -95,6 +100,7 @@ local seams = {
   end,
   ServerExpansion = function() return GetServerExpansionLevel() end,
   TransmogItem = function(link) return C_TransmogCollection.GetItemInfo(link) end,
+  CanCollect = function(sourceID) return C_TransmogCollection.PlayerCanCollectSource(sourceID) end,
   SourceInfo = function(sourceID) return C_TransmogCollection.GetAppearanceInfoBySource(sourceID) end,
   MountFromItem = function(itemID) return C_MountJournal.GetMountFromItem(itemID) end,
   MountCollected = function(mountID) return select(11, C_MountJournal.GetMountInfoByID(mountID)) end,
@@ -102,6 +108,20 @@ local seams = {
   PetOwned = function(speciesID) return C_PetJournal.GetNumCollectedInfo(speciesID) end,
   ToyInfo = function(itemID) return C_ToyBox.GetToyInfo(itemID) end,
   HasToy = function(itemID) return PlayerHasToy(itemID) end,
+  Anima = function(itemID) return C_Item.IsAnimaItemByID(itemID) end,
+  LearnSet = function(itemID) return C_Item.GetItemLearnTransmogSet(itemID) end,
+  SetInfo = function(setID) return C_TransmogSets.GetSetInfo(setID) end,
+  Professions = function()
+    local out = {}
+    for _, index in pairs({ GetProfessions() }) do
+      local _, _, _, _, _, _, skillLine = GetProfessionInfo(index)
+      if skillLine then out[skillLine] = true end
+    end
+    return out
+  end,
+  KnownText = function() return ITEM_SPELL_KNOWN end,
+  SpellCached = function(id) return C_Spell.IsSpellDataCached(id) end,
+  RequestSpell = function(id) C_Spell.RequestLoadSpellData(id) end,
   ItemSpell = function(link) return C_Item.GetItemSpell(link) end,
   IsUsable = function(link) return C_Item.IsUsableItem(link) end,
   ForMyClass = function(link) return C_Item.IsItemSpecificToPlayerClass(link) end,
@@ -122,6 +142,11 @@ local function Bool(ok, value)
   return value
 end
 
+-- A protection read that failed: the first one is kept in facts.unread
+local function Unread(facts, what)
+  facts.unread = facts.unread or what
+end
+
 -- The look: "collected" only for a permanently collected source, or a look
 -- collected with no conditional hold on this source
 function Facts.Appearance(link, equipLoc)
@@ -134,19 +159,29 @@ function Facts.Appearance(link, equipLoc)
   if info.appearanceIsCollected == true and info.sourceIsCollectedConditional ~= true then
     return "collected"
   end
-  return "missing"
+  local okC, ready, canCollect = Try(seams.CanCollect, sourceID)
+  if Bool(okC, ready) ~= true or Bool(okC, canCollect) == nil then return "unknown" end
+  return canCollect and "missing" or "none"
+end
+
+-- Mount, Pet, Toy: the collectible, or nil and true when the lookup itself
+-- failed (nil from the game is "not one")
+local function Failed(ok, value)
+  return not ok or IsSecret(value) or (value ~= nil and type(value) ~= "number")
 end
 
 local function Mount(itemID)
   local ok, mountID = Try(seams.MountFromItem, itemID)
-  if not ok or type(mountID) ~= "number" then return nil end
+  if Failed(ok, mountID) then return nil, true end
+  if mountID == nil then return nil end
   local okC, collected = Try(seams.MountCollected, mountID)
   return { kind = "mount", collected = Bool(okC, collected) }
 end
 
 local function Pet(itemID)
   local ok, speciesID = Try(seams.PetSpecies, itemID)
-  if not ok or type(speciesID) ~= "number" or speciesID <= 0 then return nil end
+  if Failed(ok, speciesID) then return nil, true end
+  if speciesID == nil or speciesID <= 0 then return nil end
   local okN, owned = Try(seams.PetOwned, speciesID)
   if not okN or type(owned) ~= "number" then return { kind = "pet", collected = nil } end
   return { kind = "pet", collected = owned > 0 }
@@ -154,21 +189,31 @@ end
 
 local function Toy(itemID)
   local ok, toyItemID = Try(seams.ToyInfo, itemID)
-  if not ok or toyItemID ~= itemID then return nil end
+  if Failed(ok, toyItemID) then return nil, true end
+  if toyItemID ~= itemID then return nil end
   local okH, has = Try(seams.HasToy, itemID)
   return { kind = "toy", collected = Bool(okH, has) }
 end
 
+-- Collectible(itemID, classID) -> collectible, failed: failed when no kind
+-- was found and a lookup couldn't be read
 function Facts.Collectible(itemID, classID)
   if classID ~= 15 and classID ~= 17 then
     return Toy(itemID)
   end
-  return Mount(itemID) or Pet(itemID) or Toy(itemID)
+  local mount, mountFailed = Mount(itemID)
+  if mount then return mount end
+  local pet, petFailed = Pet(itemID)
+  if pet then return pet end
+  local toy, toyFailed = Toy(itemID)
+  if toy then return toy end
+  return nil, mountFailed or petFailed or toyFailed
 end
 
+-- Quest(bag, slot) -> quest, failed: the game always answers with a table
 local function Quest(bag, slot)
   local ok, q = Try(seams.QuestInfo, bag, slot)
-  if not ok or type(q) ~= "table" or Utilities.IsSecretTable(q) then return nil end
+  if not ok or type(q) ~= "table" or Utilities.IsSecretTable(q) then return nil, true end
   return q.isQuestItem == true or type(q.questID) == "number"
 end
 
@@ -187,12 +232,12 @@ local function GearLevel(loc, equipLoc)
 end
 
 local function ItemInfoFacts(facts, link)
-  local ok, name, _, quality, _, _, _, _, _, equipLoc, icon, sellPrice, classID, _, bindType,
+  local ok, name, _, quality, _, _, _, _, _, equipLoc, icon, sellPrice, classID, subClassID, bindType,
     expansionID, setID, isCraftingReagent = Try(seams.ItemInfo, link)
   if not ok or name == nil or IsSecret(name) then return false end
   facts.name, facts.quality, facts.equipLoc, facts.icon = name, quality, equipLoc, icon
   facts.sellPrice = type(sellPrice) == "number" and sellPrice or 0
-  facts.classID, facts.bindType = classID, bindType
+  facts.classID, facts.subClassID, facts.bindType = classID, subClassID, bindType
   facts.expansionID = type(expansionID) == "number" and not IsSecret(expansionID) and expansionID or nil
   facts.setID = type(setID) == "number" and not IsSecret(setID) and setID > 0 and setID or nil
   facts.reagent = isCraftingReagent == true   -- a crafting reagent (counted in a bulk sale's review)
@@ -324,7 +369,9 @@ local function GearFacts(facts, loc, link)
   facts.bar, facts.barWhy = Facts.Bar(facts.equipLoc)
   facts.forClass, facts.forSpec = Facts.SpecFit(link)
   local okV, convertible = Try(seams.Convertible, loc)
-  facts.convertible = Bool(okV, convertible) == true
+  facts.convertible = Bool(okV, convertible)
+  if facts.convertible == nil then Unread(facts, "convertible") end
+  facts.convertible = facts.convertible == true
   -- An unreadable server expansion counts as this expansion: the careful side
   local okX, server = Try(seams.ServerExpansion)
   if not okX or type(server) ~= "number" or IsSecret(server) then
@@ -372,18 +419,27 @@ function Facts.Read(bag, slot, info)
   facts.bound = Bool(okB, bound)
   if facts.bound == nil then facts.bound = info.isBound == true end
   local okW, warbound = Try(seams.IsWarbound, loc)
-  facts.warbound = Bool(okW, warbound) == true
-  facts.quest = Quest(bag, slot)
+  facts.warbound = Bool(okW, warbound)
+  if facts.warbound == nil then Unread(facts, "warbound") end
+  facts.warbound = facts.warbound == true
+  local questFailed
+  facts.quest, questFailed = Quest(bag, slot)
+  if questFailed then Unread(facts, "quest") end
   local okS, inSet = Try(seams.InSet, bag, slot)
-  facts.inSet = Bool(okS, inSet) == true
+  facts.inSet = Bool(okS, inSet)
+  if facts.inSet == nil then Unread(facts, "set") end
+  facts.inSet = facts.inSet == true
   if facts.loaded then
     facts.appearance = Facts.Appearance(link, facts.equipLoc)
-    facts.collectible = Facts.Collectible(itemID, facts.classID)
+    local collectibleFailed
+    facts.collectible, collectibleFailed = Facts.Collectible(itemID, facts.classID)
+    if collectibleFailed then Unread(facts, "collectible") end
     facts.level = GearLevel(loc, facts.equipLoc)
-    if Facts.IsStatGear(facts) then GearFacts(facts, loc, link) end
+    facts.gear = Facts.IsStatGear(facts)
     facts.usable, facts.hasUse = Facts.Usable(link)
     facts.accountBound = facts.warbound or Facts.AccountBound(link, facts.bindType)
     ClassFacts(facts, bag, slot, link)
+    Facts.Purpose(facts, bag, slot)
   end
   return facts
 end
@@ -449,4 +505,74 @@ function Facts.AccountBound(link, bindType)
   if ACCOUNT_BINDS[bindType or -1] then return true end
   local ok, bound = Try(seams.BindToAccount, link)
   return Bool(ok, bound) == true
+end
+
+-- Small exceptions whose uses have no general item-to-reward API.
+local SYSTEM_USES = {
+  [188957] = "Used to make mounts and pets in Zereth Mortis",
+  [189178] = "Used to make mounts in Zereth Mortis",
+}
+local MOUNT_COSTS = {
+  [193633] = 1658, [193696] = 1658, [193708] = 1658,
+  [195496] = 1546, [195502] = 1546,
+}
+local RECIPE_PROFESSION = {
+  [1] = 165, [2] = 197, [3] = 202, [4] = 164, [5] = 185,
+  [6] = 171, [8] = 333, [9] = 356, [10] = 755, [11] = 773,
+}
+
+function Facts.Recipe(facts, bag, slot)
+  local ok, lines = Try(seams.TooltipLines, bag, slot)
+  local okK, known = Try(seams.KnownText)
+  if not ok or type(lines) ~= "table" or Utilities.IsSecretTable(lines)
+      or not okK or IsSecret(known) or type(known) ~= "string" then return nil end
+  local okS, _, spell = Try(seams.ItemSpell, facts.link)
+  if not okS or IsSecret(spell) or type(spell) ~= "number" then return nil end
+  if Bool(Try(seams.SpellCached, spell)) ~= true then
+    pcall(seams.RequestSpell, spell)
+    return nil
+  end
+  for _, line in ipairs(lines) do
+    if type(line) ~= "table" or Utilities.IsSecretTable(line) then return nil end
+    local text = line.leftText
+    if IsSecret(text) then return nil end
+    if type(text) == "string" and text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") == known then
+      return false
+    end
+  end
+  local profession = RECIPE_PROFESSION[facts.subClassID]
+  if not profession then return false end
+  local okP, mine = Try(seams.Professions)
+  if not okP or type(mine) ~= "table" or Utilities.IsSecretTable(mine) then return nil end
+  return mine[profession] == true
+end
+
+function Facts.Purpose(facts, bag, slot)
+  local anima = Bool(Try(seams.Anima, facts.itemID))
+  if anima == nil then Unread(facts, "anima")
+  elseif anima then facts.purpose = "Adds anima for covenant rewards and upgrades"; return end
+  if SYSTEM_USES[facts.itemID] then facts.purpose = SYSTEM_USES[facts.itemID]; return end
+  local mount = MOUNT_COSTS[facts.itemID]
+  if mount then
+    local collected = Bool(Try(seams.MountCollected, mount))
+    if collected == nil then Unread(facts, "mount purchase")
+    elseif not collected then facts.purpose = "Trades for an Ottuk mount you have not collected" end
+    return
+  end
+  if facts.classID == 9 then
+    local needed = Facts.Recipe(facts, bag, slot)
+    if needed == nil then Unread(facts, "recipe")
+    elseif needed then facts.purpose = "You can learn this recipe for your profession" end
+    return
+  end
+  local ok, setID = Try(seams.LearnSet, facts.itemID)
+  if Failed(ok, setID) then Unread(facts, "appearance token"); return end
+  if not setID or setID <= 0 then return end
+  local okS, set = Try(seams.SetInfo, setID)
+  if not okS or type(set) ~= "table" or Utilities.IsSecretTable(set)
+      or type(set.collected) ~= "boolean" or type(set.validForCharacter) ~= "boolean" then
+    Unread(facts, "appearance token")
+  elseif not set.collected and set.validForCharacter then
+    facts.purpose = "Teaches appearances you have not collected"
+  end
 end

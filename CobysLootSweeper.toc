@@ -1,6 +1,6 @@
 ## Interface: 120100
 ## Title: Coby's Loot Sweeper
-## Version: 0.0.3
+## Version: 0.0.4
 ## Author: Cobanyte
 ## OptionalDeps: Auctionator, TradeSkillMaster, Scrap
 ## Notes: Sell the loot from your old-raid and dungeon runs, and see what is worth auctioning. Everything you already had stays safe.
@@ -17,6 +17,7 @@ Libs\CobySuite\Build.lua
 Libs\CobySuite\Source\EventBus.lua
 Libs\CobySuite\Source\Utilities\Main.lua
 Libs\CobySuite\Source\Chat\Main.lua
+Libs\CobySuite\Source\Chat\VersionCheck.lua
 Libs\CobySuite\Source\Slash\Main.lua
 Libs\CobySuite\Source\Config\Main.lua
 Libs\CobySuite\Source\UI\Factories.lua
@@ -28,6 +29,8 @@ Libs\CobySuite\Source\UI\SortTable.lua
 Libs\CobySuite\Source\UI\Toast.lua
 Libs\CobySuite\Source\UI\Launcher.lua
 Libs\CobySuite\Source\UI\Guide.lua
+Libs\CobySuite\Source\UI\AddonCatalog.lua
+Libs\CobySuite\Source\UI\Addons.lua
 Libs\CobySuite\Source\Debug\Logger.lua
 Libs\CobySuite\Source\Debug\Window.lua
 

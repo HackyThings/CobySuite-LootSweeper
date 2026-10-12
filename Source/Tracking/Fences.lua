@@ -180,7 +180,7 @@ local function GameSays(key)
 end
 
 -- OpenList(): every open fence, oldest first, with what the game says now,
--- for diag and Check Sweep
+-- for diag and the development reads
 function Fences.OpenList()
   local now, list = seams.Now(), {}
   for key, since in pairs(open) do

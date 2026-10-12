@@ -87,7 +87,7 @@ function StepPanel.Verify(mode, row)
 end
 
 local SKIP_TEXT = {
-  combat = "Not in combat. Try again once it ends.",
+  combat = "Wait for combat to end, then try again.",
   gone = "It isn't in your bags any more.",
   changed = "That bag slot holds something else now.",
   locked = "The game is busy with it. Try again in a moment.",
@@ -319,6 +319,9 @@ function StepPanel.Close()
   session = nil
   if panel then panel:Hide() end
 end
+
+-- The panel's window, nil until it is first opened (the windows reset puts it back)
+function StepPanel.Frame() return panel end
 
 -------------------------------------------------------------------------------
 -- Frames

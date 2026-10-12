@@ -61,11 +61,11 @@ local function BuildRow(guid, entry, settings)
   local Rules = CobysLootSweeper.Rules
   return {
     guid = guid, entry = entry, bag = bag, slot = slot, facts = facts, quote = quote,
-    bucket = result.bucket, reason = result.reason, hard = result.hard,
+    bucket = result.bucket, reason = result.reason, hard = result.hard, safety = result.safety,
     value = result.value, vendorValue = result.vendorValue, ahValue = result.ahValue,
     runName = CobysLootSweeper.Runs.RunName(entry.runId), pref = pref, remembered = remembered,
     group = result.bucket == Rules.VENDOR and Rules.Group(facts) or nil,
-    deletable = result.bucket == Rules.KEEP and Rules.Deletable(entry, facts, pref, settings, remembered) or false,
+    deletable = result.bucket == Rules.CANTSELL and Rules.Deletable(entry, facts, pref, settings, remembered) or false,
   }
 end
 
@@ -84,7 +84,7 @@ end
 -- current: what the active run has added so far (the window's live banner)
 local function BuildSummary(list, runId)
   local s = { vendor = { count = 0, value = 0 }, post = { count = 0, value = 0 }, keep = { count = 0, value = 0 },
-              current = { count = 0, value = 0 }, deletable = 0, groups = {} }
+              cantsell = { count = 0, value = 0 }, current = { count = 0, value = 0 }, deletable = 0, groups = {} }
   for _, key in ipairs(Pile.GROUPS) do s.groups[key] = { count = 0, value = 0 } end
   local runs = {}
   local run = CobysLootSweeper.Runs.Active()
@@ -157,7 +157,7 @@ function Pile.RunList()
       local info = id ~= Pile.OTHER and Runs.Info(id) or nil
       r = { id = id, name = info and info.name, startedAt = info and info.startedAt, endedAt = info and info.endedAt,
             active = active ~= nil and active.id == id, count = 0, vendorCount = 0, vendorValue = 0,
-            postCount = 0, keepCount = 0 }
+            postCount = 0, keepCount = 0, cantsellCount = 0 }
       byId[id] = r
       list[#list + 1] = r
     end
@@ -167,6 +167,8 @@ function Pile.RunList()
       r.vendorValue = r.vendorValue + (row.vendorValue or 0)
     elseif row.bucket == "post" then
       r.postCount = r.postCount + 1
+    elseif row.bucket == "cantsell" then
+      r.cantsellCount = r.cantsellCount + 1
     else
       r.keepCount = r.keepCount + 1
     end
@@ -213,7 +215,8 @@ local refreshEvents = {
   "GET_ITEM_INFO_RECEIVED", "TRANSMOG_COLLECTION_UPDATED", "NEW_MOUNT_ADDED",
   "NEW_PET_ADDED", "NEW_TOY_ADDED", "EQUIPMENT_SETS_CHANGED",
   -- What is worn sets the gear rules' bar (review 2026-10-01, UI-01)
-  "PLAYER_EQUIPMENT_CHANGED",
+  "PLAYER_EQUIPMENT_CHANGED", "SPELL_DATA_LOAD_RESULT", "SKILL_LINES_CHANGED",
+  "NEW_RECIPE_LEARNED", "SPELLS_CHANGED", "TRANSMOG_SETS_UPDATE",
 }
 local frame = CreateFrame("Frame")
 for _, event in ipairs(refreshEvents) do pcall(frame.RegisterEvent, frame, event) end

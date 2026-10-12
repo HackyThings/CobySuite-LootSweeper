@@ -2,26 +2,27 @@
 -- MainWindow: the one Loot Sweeper window (design section 3)
 --
 -- At the top, the Overview (UI/Overview.lua): a live status banner with
--- Start / Stop, and five tiles: Vendor, Post, Protected, History and
--- Ignored. They pick the list below; History and Ignored swap in their own
+-- Start / Stop, and six tiles: Vendor, Sellables (the internal key is still
+-- "post"), Protected, Can't Sell, History and Ignored. They pick the list
+-- below; History and Ignored swap in their own
 -- views. The
 -- list: item (icon in its quality's color), iLvl (gear only), vendor value,
--- AH value, and why (colored by kind: green to sell, gold to post, orange
+-- AH value, and why (colored by kind: green to sell, gold for Sellables, orange
 -- when protected, tan when it's the player's call), with a picture and a
 -- line when it is empty. The footer's action follows where the player
--- stands: at a vendor on the Vendor tab "Bulk sell..." opens BulkSell's
+-- stands: at a vendor on the Vendor tab "Bulk Sell..." opens BulkSell's
 -- presets, custom choices and plan preview, with an optional question, and
--- shows progress and Stop while selling; on the Post tab "Vendor these
--- instead..." at a vendor, "Check prices with Auctionator" at the auction
--- house. The
+-- shows progress and Stop while selling; on the Sellables tab "Vendor These
+-- Items..." at a vendor, "Check Prices with Auctionator" at the auction
+-- house; on the Can't Sell tab the delete steps. The
 -- note line shows the seller's last message, another addon that also sells,
--- or that no price addon is installed. Right-click a row: Use token... (a
--- token for this class), Automatic or Sell, Remember Sell for future copies, then
--- Keep every copy and Ignore. Shift-click a row puts its link in chat. Between the tiles and the
+-- or that no price addon is installed. Right-click a row: Not Protected on a
+-- Protected row (Use Protection Rules undoes it) and Hide From List. Shift-click
+-- a row puts its link in chat. Between the tiles and the
 -- list, the run picker: All runs, or one run's loot (the active run first,
 -- then newest, with when it ran), and the tiles, the list, selling and Forget
 -- then work on that run alone. On the Vendor tab a row of quick buttons
--- (QuickSell: Junk, Bound gear, Other, Tradeable, Warbound, Can't sell) sits
+-- (QuickSell: Junk, Bound Gear, Other, Tradeable, Warbound, Can't Sell) sits
 -- over the footer. Built at ADDON_LOADED (never in combat).
 -------------------------------------------------------------------------------
 local UIModule = {}
@@ -62,7 +63,6 @@ local planRows = nil      -- the Bulk sell panel's plan: the list previews exact
 local runSignature = nil
 local currentTab = "vendor"
 local sortKey, sortAscending = "vendor", false
-local rememberChoice = false
 local dockedTo = nil
 
 local function Pile() return CobysLootSweeper.Pile end
@@ -198,6 +198,9 @@ local function InitRow(row, data)
         GameTooltip_AddBlankLineToTooltip(GameTooltip)
         GameTooltip:AddLine("Why: " .. why, c[1], c[2], c[3], true)
       end
+      if self.data.safety and self.data.safety ~= self.data.reason then
+        GameTooltip:AddLine(self.data.safety, 1, 0.7, 0.3, true)
+      end
       GameTooltip_AddInstructionLine(GameTooltip, "Right-click for choices. Shift-click to link in chat.")
       GameTooltip:Show()
     end)
@@ -220,18 +223,15 @@ end
 -------------------------------------------------------------------------------
 -- A grouped row's choice goes to every copy in it
 local function SetPref(data, value)
+  if Seller().IsBusy() then return end
+  local ledger = CobysLootSweeper.Runs.Ledger()
   for _, copy in ipairs(data.copies or { data }) do
-    CobysLootSweeper.Prefs.Set(copy.entry, value, rememberChoice and value ~= nil)
+    if ledger.pile[copy.guid] ~= copy.entry then return end
   end
-end
-
--- Keep: every copy of the item, on this character (or every character with
--- account-wide lists), leaves Loot Sweeper for good
-local function KeepItem(data)
-  local link = data.facts.link or data.entry.link
-  CobysLootSweeper.Prefs.Keep(data.entry.itemID, link)
-  CobysLootSweeper.Utilities.Message(string.format("Keeping %s: Loot Sweeper won't list it again. /ls kept undoes it.",
-    link or data.facts.name or "it"))
+  if value == "sell" and not CobysLootSweeper.Rules.CanUnprotect(data) then return end
+  for _, copy in ipairs(data.copies or { data }) do
+    CobysLootSweeper.Prefs.Set(copy.entry, value, false)
+  end
 end
 
 local function IgnoreRow(data)
@@ -243,37 +243,36 @@ local function IgnoreRow(data)
   CobysLootSweeper.Runs.Ignore(guids)
 end
 
-ShowMenu = function(owner, data)
-  MenuUtil.CreateContextMenu(owner, function(_, root)
+-- A context menu at the cursor, as the player's right-click opens it; with an
+-- anchor (AnchorUtil.CreateAnchor) it opens there instead, through the same
+-- description the context menu builds, so Verify's menu scenes stay on the
+-- screen whatever the cursor does (Task #318). The window and the history list
+-- open their menus through this.
+function UIModule.OpenMenu(owner, generator, anchor)
+  if not anchor then return MenuUtil.CreateContextMenu(owner, generator) end
+  local description = MenuUtil.CreateRootMenuDescription(owner.menuMixin or MenuVariants.GetDefaultContextMenuMixin())
+  Menu.PopulateDescription(generator, owner, description)
+  return Menu.GetManager():OpenMenu(owner, description, anchor)
+end
+
+ShowMenu = function(owner, data, anchor)
+  UIModule.OpenMenu(owner, function(_, root)
     root:CreateTitle(data.facts.name or "Item")
-    if data.facts.classToken then
-      local use = root:CreateButton("Use token...", function() CobysLootSweeper.UseToken.Open(data) end)
-      if InCombatLockdown() then use:SetEnabled(false) end
-      root:CreateDivider()
+    if data.pref == "sell" and not data.remembered then
+      root:CreateButton("Use Protection Rules", function() SetPref(data, "auto") end)
+    elseif data.bucket == "keep" then
+      local release = root:CreateButton("Not Protected", function() SetPref(data, "sell") end)
+      release:SetEnabled(not Seller().IsBusy() and CobysLootSweeper.Rules.CanUnprotect(data))
+      release:SetTooltip(function(tooltip)
+        GameTooltip_AddNormalLine(tooltip, data.safety
+          or "Use the normal Vendor, Sellables or Can't Sell list for these copies. Nothing is sold by this click.")
+      end)
     end
-    local function Is(value) return function() return data.pref == value end end
-    root:CreateRadio("Automatic", Is(nil), function() SetPref(data, nil) end)
-    local sell = root:CreateRadio("Sell", Is("sell"), function() SetPref(data, "sell") end)
-    if data.hard and data.bucket ~= "vendor" then
-      sell:SetEnabled(false)
-      sell:SetTooltip(function(tooltip) GameTooltip_AddNormalLine(tooltip, "Loot Sweeper protects this one: " .. (data.reason or "")) end)
-    end
-    root:CreateCheckbox("Remember Sell for future copies", function() return rememberChoice end,
-      function() rememberChoice = not rememberChoice end)
-    -- The lasting choices sit apart from the radios (Task #235)
-    root:CreateDivider()
-    local keep = root:CreateButton("Keep every copy", function() KeepItem(data) end)
-    keep:SetTooltip(function(tooltip)
-      local where = CobysLootSweeper.Prefs.IsAccountWide() and "on every character sharing your lists" or "on this character"
-      GameTooltip_AddNormalLine(tooltip, string.format("Loot Sweeper lets go of every copy of this item now and never lists it again %s. /ls kept undoes it.", where))
-    end)
-    local copies = #(data.copies or { data })
-    local ignore = root:CreateButton(copies > 1 and string.format("Ignore these %d", copies) or "Ignore",
-      function() IgnoreRow(data) end)
+    local ignore = root:CreateButton("Hide From List", function() IgnoreRow(data) end)
     ignore:SetTooltip(function(tooltip)
       GameTooltip_AddNormalLine(tooltip, "Loot Sweeper stops listing the copies in this row; they stay in your bags. The Ignored tab brings them back. Future copies are sorted as usual.")
     end)
-  end)
+  end, anchor)
 end
 
 -------------------------------------------------------------------------------
@@ -305,7 +304,8 @@ local function RunTooltip(r)
   end
   local parts = {}
   if r.vendorCount > 0 then parts[#parts + 1] = string.format("%d to sell (%s)", r.vendorCount, Utilities.Money(r.vendorValue)) end
-  if r.postCount > 0 then parts[#parts + 1] = string.format("%d worth posting", r.postCount) end
+  if r.postCount > 0 then parts[#parts + 1] = string.format("%d sellables", r.postCount) end
+  if (r.cantsellCount or 0) > 0 then parts[#parts + 1] = string.format("%d cannot be sold", r.cantsellCount) end
   if r.keepCount > 0 then parts[#parts + 1] = string.format("%d protected", r.keepCount) end
   return (times and (times .. ". ") or "") .. table.concat(parts, ", ") .. "."
 end
@@ -393,9 +393,9 @@ local function Previewing()
   return { stacks = #planRows, copper = copper }
 end
 
--- The run button says what it does to the run ("Start run", "Stop run"), so
+-- The run button says what it does to the run ("Start Run", "Stop Run"), so
 -- it never reads as a sale control; it rests while a sale runs (Task #235)
-local RUN_BUTTON_TEXT = { Start = "Start run", Stop = "Stop run" }
+local RUN_BUTTON_TEXT = { Start = "Start Run", Stop = "Stop Run" }
 
 local function RefreshOverview()
   local Runs = CobysLootSweeper.Runs
@@ -411,27 +411,17 @@ end
 
 local EMPTY = {
   vendor = "No run loot is ready to sell. The Protected tab says what is held back, and why.",
-  post = "Nothing worth posting right now.",
+  post = "No trade goods or unbound BoE items are waiting.",
+  cantsell = "No items that vendors refuse are waiting.",
   keep = "Nothing protected. Loot Sweeper lists what it won't sell by itself here, with the reason.",
   -- the list previews a Bulk sell pick that matches nothing
   plan = "Nothing matches this pick. Choose another preset or tick more in Bulk sell.",
-  -- the Post tab is empty while unpriced loot waits on Protected
-  unpriced = "Nothing worth posting right now. Loot with no recent AH price waits on the Protected tab; a scan at the auction house prices it.",
 }
 
--- Protected rows held back only for want of a fresh AH price: what a price
--- check at the auction house could move
-local function UnpricedRows()
-  local out = {}
-  for _, row in ipairs(Pile().Bucket("keep", nil, runFilter)) do
-    if row.reason == CobysLootSweeper.Rules.NO_PRICE_REASON then out[#out + 1] = row end
-  end
-  return out
-end
 -- With no loot at all, the list shows how Loot Sweeper works in three steps
 local STEPS = {
   { icon = CobysLootSweeper.ICON, title = "Enter an old dungeon or raid",
-    text = "Tracking starts by itself in most of them. If it doesn't, or anywhere else, press Start run." },
+    text = "Tracking starts by itself in most of them. If it doesn't, or anywhere else, press Start Run." },
   { icon = "Interface\\Icons\\INV_Shield_06", title = "Loot as usual",
     text = "Only what you pick up now counts. What you already carry is never touched." },
   { icon = "Interface\\Icons\\INV_Misc_Coin_02", title = "Sell at any vendor",
@@ -444,13 +434,11 @@ local PaintSteps   -- forward (defined with the steps it paints)
 -- on. An empty tab of a pile: its picture and line
 local function RefreshEmpty(rows)
   local s = Pile().Summary()
-  local nothing = s.vendor.count + s.post.count + s.keep.count == 0
+  local nothing = s.vendor.count + s.post.count + s.keep.count + (s.cantsell and s.cantsell.count or 0) == 0
   local text = nil
   if not nothing and #rows == 0 then
     if Previewing() then
       text = EMPTY.plan
-    elseif currentTab == "post" and #UnpricedRows() > 0 then
-      text = EMPTY.unpriced
     else
       text = EMPTY[currentTab]
     end
@@ -464,7 +452,7 @@ local function RefreshEmpty(rows)
   if nothing then PaintSteps(CobysLootSweeper.Runs.Active() ~= nil) end
   header:SetShown(not nothing)
   footer.forget:SetShown(not nothing)
-  footer.forget:SetText(runFilter and "Forget this run" or "Forget remaining loot")
+  footer.forget:SetText(runFilter and "Forget This Run" or "Forget Remaining Loot")
   return nothing
 end
 
@@ -478,11 +466,11 @@ local function VendorAction()
     return string.format("Selling %d of %d...", state.sold + 1, state.total), false, true
   end
   if not Seller().MerchantReady() then return "Visit a vendor to sell", false, false end
-  if state.phase == "paused" then return "Sell the next batch", true, true end
-  if s.vendor.count + s.post.count + s.keep.count == 0 then return "Nothing to sell", false, false end
+  if state.phase == "paused" then return "Sell the Next Batch", true, true end
+  if s.vendor.count == 0 then return "Nothing to sell", false, false end
   if InCombatLockdown() then return "Leave combat to sell", false, false end
   if not Seller().IsQuiet() then return "Waiting for the vendor...", false, false end
-  return "Bulk sell...", true, false
+  return "Bulk Sell...", true, false
 end
 
 local function FooterNote()
@@ -490,33 +478,26 @@ local function FooterNote()
   if state.message and state.phase ~= "selling" then return state.message end
   local others = Seller().OtherSellers()
   if #others > 0 and Seller().MerchantReady() then
-    return table.concat(others, ", ") .. " is also selling items. Loot Sweeper protects only its own sales."
+    return "Other sellers: " .. table.concat(others, ", ") .. ". Loot Sweeper protects only its own sales."
   end
   if #CobysLootSweeper.Prices.Sources() == 0 then
-    return "No price addon found, so most tradeable loot stays in Protected. Auctionator can price it."
+    return "No price addon found. Sellables still lists trade goods and BoE items."
   end
   return ""
 end
 
--- Stop selling shows while a batch runs or waits paused after 12 sales
+-- Stop Selling shows while a batch runs or waits paused after 12 sales
 local function Stoppable()
   local phase = Seller().State().phase
   return phase == "selling" or phase == "paused"
 end
 
--- The Protected tab's action: at the auction house, a price check for the
--- loot held back for want of a fresh price; else the delete steps for what
--- no vendor buys, which is listed on this tab (Task #235)
-local function ProtectedAction(selling)
-  local Prices, Fences = CobysLootSweeper.Prices, CobysLootSweeper.Fences
-  if Prices.Installed("Auctionator") and Fences.IsAuctionOpen() and #UnpricedRows() > 0 then
-    return "price", "Check prices with Auctionator", true,
-      "Searches the loot with no recent AH price in Auctionator."
-  end
+-- Only the Can't Sell tab offers the existing one-at-a-time delete flow.
+local function CantSellAction(selling)
   local deletable = Pile().Summary(runFilter).deletable or 0
   if deletable > 0 then
-    return "delete", string.format("Can't sell (%d)...", deletable), not selling and not InCombatLockdown(),
-      "Can't sell shows the loot no vendor buys one at a time, to delete or skip."
+    return "delete", string.format("Review for Deletion (%d)...", deletable), not selling and not InCombatLockdown(),
+      "Can't Sell shows the loot no vendor buys one at a time, to delete or skip."
   end
   return nil
 end
@@ -534,25 +515,25 @@ local function RefreshFooter(rows)
     footer.action:Show()
     -- The hint names only what can be pressed where the player stands
     if #rows > 0 and not selling then
-      hint = Seller().MerchantReady() and "Tradeable and Warbound go one at a time; Bulk sell... picks a group."
-        or "At a vendor, these buttons sell by group. Can't sell works anywhere."
+      hint = Seller().MerchantReady() and "Tradeable and Warbound go one at a time; Bulk Sell... picks a group."
+        or "At a vendor, these buttons sell by group."
     end
   elseif currentTab == "post" and #rows > 0 and Seller().MerchantReady() then
     -- At a vendor the player may sell them there instead (Task #121)
-    footer.action:SetText("Vendor these instead...")
+    footer.action:SetText("Vendor These Items...")
     footer.action:SetEnabled(not selling and not InCombatLockdown())
     footer.action:Show()
     hint = "AH values are estimates, not promised sale prices."
   elseif currentTab == "post" and #rows > 0 then
     local hasAuctionator = CobysLootSweeper.Prices.Installed("Auctionator")
     local atAuction = CobysLootSweeper.Fences.IsAuctionOpen()
-    footer.action:SetText("Check prices with Auctionator")
+    footer.action:SetText("Check Prices with Auctionator")
     footer.action:SetEnabled(hasAuctionator and atAuction)
     footer.action:Show()
-    hint = (hasAuctionator and not atAuction) and "At the auction house, Check prices searches these in Auctionator. AH values are estimates."
+    hint = (hasAuctionator and not atAuction) and "At the auction house, Check Prices searches these in Auctionator. AH values are estimates."
       or "AH values are estimates, not promised sale prices."
-  elseif currentTab == "keep" then
-    local mode, text, enabled, tip = ProtectedAction(selling)
+  elseif currentTab == "cantsell" then
+    local mode, text, enabled, tip = CantSellAction(selling)
     if mode then
       footer.action.mode = mode
       footer.action:SetText(text)
@@ -561,7 +542,7 @@ local function RefreshFooter(rows)
       hint = tip
     end
   end
-  -- Stop selling stays within reach on every tab while a sale runs
+  -- Stop Selling stays within reach on every tab while a sale runs
   footer.stop:SetShown(Stoppable())
   -- The quick-sell confirmation covers the footer: nothing shows through it
   if CobysLootSweeper.QuickSell.IsConfirming() then
@@ -592,7 +573,7 @@ end
 local function DisplayRows(rows)
   local groups, byKey = {}, {}
   for _, row in ipairs(rows) do
-    local key = table.concat({ tostring(row.facts.link or row.facts.itemID), row.reason or "", row.pref or "" }, "|")
+    local key = table.concat({ tostring(row.facts.link or row.facts.itemID), row.reason or "", row.pref or "", tostring(row.remembered == true), tostring(row.hard), row.safety or "" }, "|")
     local g = byKey[key]
     if not g then
       g = setmetatable({ copies = {}, units = 0, vendorValue = 0, value = 0 }, { __index = row })
@@ -615,7 +596,7 @@ function UIModule.Refresh()
   local all = Pile().Summary()
   local history = currentTab == "history"
   local ignored = currentTab == "ignored"
-  RefreshRuns((all.vendor.count + all.post.count + all.keep.count == 0 and not history) or ignored)
+  RefreshRuns((all.vendor.count + all.post.count + all.keep.count + (all.cantsell and all.cantsell.count or 0) == 0 and not history) or ignored)
   CobysLootSweeper.HistoryView.SetShown(history)
   CobysLootSweeper.IgnoredView.SetShown(ignored)
   if history or ignored then
@@ -670,7 +651,7 @@ function UIModule.SetTab(key)
   if key ~= currentTab then CobysLootSweeper.QuickSell.CancelConfirm() end
   -- Bulk sell previews its plan on Vendor and Post only; on another tab its
   -- Sell would describe a list nobody sees (Task #235)
-  if key ~= "vendor" and key ~= "post" then CobysLootSweeper.BulkSell.Close() end
+  if key ~= currentTab then CobysLootSweeper.BulkSell.Close() end
   currentTab = key
   UIModule.Refresh()
 end
@@ -679,20 +660,8 @@ end
 -- Actions
 -------------------------------------------------------------------------------
 local function OnAction()
-  if currentTab == "keep" then
-    if footer.action.mode == "delete" then
-      CobysLootSweeper.StepPanel.Open("delete", Pile().Deletable(runFilter), "Delete what no vendor buys")
-    elseif footer.action.mode == "price" then
-      local names, seen = {}, {}
-      for _, row in ipairs(UnpricedRows()) do
-        local name = row.facts.name
-        if name and not seen[name] then
-          seen[name] = true
-          names[#names + 1] = name
-        end
-      end
-      CobysLootSweeper.Prices.SearchAuctionator(names)
-    end
+  if currentTab == "cantsell" then
+    CobysLootSweeper.StepPanel.Open("delete", Pile().Deletable(runFilter), "Delete what no vendor buys")
   elseif currentTab == "vendor" then
     if Seller().State().phase == "paused" then
       Seller().Start({})
@@ -819,9 +788,9 @@ end
 -- The banner and tiles; returns the y offset below them (where the run picker goes)
 local function BuildTop()
   runButton = UI.CreateButton(window, {
-    text = "Start run", size = { 90, 22 },
+    text = "Start Run", size = { 90, 22 },
     onClick = OnRunButton,
-    tooltip = "Start run tracks new loot from here on. Stop run ends tracking; what it found stays listed. Old dungeons and raids start and stop by themselves.",
+    tooltip = "Start Run tracks new loot from here on. Stop Run ends tracking; what it found stays listed. Old dungeons and raids start and stop by themselves.",
   })
   local y = CobysLootSweeper.Overview.Build(window, runButton, function(key) UIModule.SetTab(key) end, OVERVIEW_TOP)
   -- Right-click the banner: never track where you stand
@@ -833,7 +802,7 @@ local function BuildTop()
     if not place then return end
     MenuUtil.CreateContextMenu(self, function(_, root)
       root:CreateTitle(place.name or "Here")
-      root:CreateButton("Never track here", function() CobysLootSweeper.Runs.BlockHere() end)
+      root:CreateButton("Never Track Here", function() CobysLootSweeper.Runs.BlockHere() end)
     end)
   end)
   return y
@@ -923,12 +892,12 @@ local function BuildFooter()
     onClick = OnAction,
   })
   footer.stop = UI.CreateButton(window, {
-    text = "Stop selling", size = { 100, 22 }, point = { "RIGHT", footer.action, "LEFT", -6, 0 },
+    text = "Stop Selling", size = { 100, 22 }, point = { "RIGHT", footer.action, "LEFT", -6, 0 },
     onClick = function() Seller().Stop() end,
     tooltip = "Stop after the current sale. Tracking carries on.",
   })
   footer.forget = UI.CreateButton(window, {
-    text = "Forget remaining loot", size = { 150, 20 }, fontSize = 10,
+    text = "Forget Remaining Loot", size = { 150, 20 }, fontSize = 10,
     point = { "BOTTOMLEFT", window, "BOTTOMLEFT", PAD + 2, 11 },
     onClick = ConfirmForget,
     tooltip = "Stop listing this loot: every run's, or only the picked run's. The items stay in your bags.",
@@ -976,7 +945,7 @@ end
 
 function UIModule.Open(tab)
   if not window then return end
-  if tab then currentTab = tab end
+  if tab then UIModule.SetTab(tab) end
   if not dockedTo then window:RestoreState() end
   window:Show()
   UIModule.Refresh()
@@ -987,7 +956,7 @@ end
 -- right); our own frame is the one anchored, nothing of Blizzard's changes
 function UIModule.OpenDocked(anchorFrame, tab)
   if not window then return end
-  currentTab = tab or currentTab
+  if tab then UIModule.SetTab(tab) end
   dockedTo = anchorFrame
   if not UI.DockBeside(window, anchorFrame, { gap = 12 }) then
     window:ClearAllPoints()
@@ -1008,7 +977,7 @@ UIModule._test = {
   Window = function() return window end,
   Tab = function() return currentTab end,
   SetTabQuiet = function(tab) currentTab = tab end,
-  ShowMenu = function(owner, data) return ShowMenu(owner, data) end,
+  ShowMenu = function(owner, data, anchor) return ShowMenu(owner, data, anchor) end,
   FirstRow = function()
     local first
     if scrollBox then scrollBox:ForEachFrame(function(row) if not first and row.data then first = row end end) end
@@ -1027,6 +996,7 @@ UIModule._test = {
 -- The footer action waits a second after the vendor opens; repaint when that passes
 local function BuildTicker()
   local ticker = CreateFrame("Frame", nil, window)
+  UIModule.tickerFrame = ticker   -- the development probes time its OnUpdate (a field costs nothing per call)
   local elapsed = 0
   ticker:SetScript("OnUpdate", function(_, dt)
     elapsed = elapsed + dt

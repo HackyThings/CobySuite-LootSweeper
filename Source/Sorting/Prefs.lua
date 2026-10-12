@@ -22,7 +22,7 @@
 -- Lists = { keep = { [itemID] = label }, sell = { [itemID] = label },
 --           blocked = { instances = {}, zones = {}, delves = {}, quests = {} },
 --           allowed = { [instanceMapID] = label }   current content the
---           player said to track always (Runs' offer, "Yes, always here"),
+--           player said to track always (Runs' offer, "Yes, Always Here"),
 --           name = "Name - Realm" }; a label is a link or name to show (or
 --           true), never a key.
 -- Every client call goes through Prefs._test.seams.
@@ -194,6 +194,7 @@ function Prefs.IsKept(itemID) return itemID ~= nil and Prefs.Lists().keep[itemID
 -- "sell" or nil (a kept item is never in the pile)
 function Prefs.For(entry)
   if not entry then return nil end
+  if entry.pref == "auto" then return nil end
   if entry.pref == Prefs.SELL then return Prefs.SELL, false end
   if Prefs.Lists().sell[entry.itemID] ~= nil then return Prefs.SELL, true end
   return nil
@@ -213,6 +214,11 @@ end
 function Prefs.Set(entry, value, remember)
   if not entry or CobysLootSweeper.Utilities.Guarded("choice") then return end
   if value == Prefs.KEEP then return Prefs.Keep(entry.itemID, entry.link) end
+  if value == "auto" then
+    entry.pref = "auto"
+    Changed()
+    return
+  end
   if value ~= nil and value ~= Prefs.SELL then return end
   local lists = Prefs.Lists()
   if value == nil then
@@ -239,7 +245,7 @@ function Prefs.Block(kind, id, label)
   return true
 end
 
--- Current content tracked whenever the player enters it ("Yes, always here")
+-- Current content tracked whenever the player enters it ("Yes, Always Here")
 function Prefs.Allow(instanceMapID, label)
   if type(instanceMapID) ~= "number" then return false end
   Prefs.Lists().allowed[instanceMapID] = label or true

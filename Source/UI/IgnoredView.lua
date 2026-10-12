@@ -70,7 +70,7 @@ local function ShowMenu(owner, row)
     root:CreateTitle(row.name)
     local un = root:CreateButton("Un-ignore", function() Unignore(row.guid) end)
     un:SetTooltip(function(tooltip)
-      GameTooltip_AddNormalLine(tooltip, "Back on the Loot Sweeper lists as it was before you ignored it.")
+      GameTooltip_AddNormalLine(tooltip, "List this copy again; changed stacks stay protected.")
     end)
   end)
 end

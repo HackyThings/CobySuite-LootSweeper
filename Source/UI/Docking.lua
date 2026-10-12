@@ -1,6 +1,6 @@
 -------------------------------------------------------------------------------
 -- Docking: at the auction house the window opens beside it when items are
--- worth posting (showAtAuctionHouse); at a vendor it opens only from the
+-- there are Sellables (showAtAuctionHouse); at a vendor it opens only from the
 -- Loot Sweeper button on the vendor window (VendorButton). Either way it
 -- closes with the window it sits beside. Only our own frame is anchored;
 -- nothing of Blizzard's is shown, hidden or changed.

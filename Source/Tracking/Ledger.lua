@@ -503,11 +503,19 @@ local function ReturnAway(state, read, changes, deltas)
 end
 
 -- An ignored item no longer in a carried bag (sold, banked, equipped,
--- destroyed) is forgotten: there is nothing left to un-ignore
+-- destroyed) is forgotten: there is nothing left to un-ignore. One whose
+-- stack size changed since the last read is held for good, so the player's
+-- own units merged onto it later can't make it whole again (TRACK-01, Task #311)
 local function PruneIgnored(state, read)
   for guid, entry in pairs(state.ignored) do
     local item = read.items[guid]
-    if not item or item.place ~= "bag" or item.itemID ~= entry.itemID then state.ignored[guid] = nil end
+    if not item or item.place ~= "bag" or item.itemID ~= entry.itemID then
+      state.ignored[guid] = nil
+    elseif state.known[guid] and item.count ~= state.known[guid].count then
+      entry.added = math.min(item.count, entry.count + entry.added)
+      entry.count = 0
+      entry.hold = entry.hold or Ledger.HOLD_INTERRUPTED
+    end
   end
 end
 

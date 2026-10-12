@@ -87,7 +87,7 @@ function VendorButton.Refresh()
   local merchant = Merchant()
   local open = merchant and merchant:IsShown() and CobysLootSweeper.Fences.IsMerchantOpen()
   local s = open and CobysLootSweeper.Config.Get("showAtMerchant") and CobysLootSweeper.Pile.Summary()
-  local waiting = s and (s.vendor.count + s.post.count + s.keep.count) > 0
+  local waiting = s and (s.vendor.count + s.post.count + s.keep.count + (s.cantsell and s.cantsell.count or 0)) > 0
   if not waiting then
     button.Ants:ShowAutoCastEnabled(false)
     button:Hide()

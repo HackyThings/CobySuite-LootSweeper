@@ -14,8 +14,9 @@ local launcher = CobySuite_CobysLootSweeper.UI.CreateLauncher({
     local status = {}
     if run then status[#status + 1] = "Tracking " .. (run.name or "a run") end
     status[#status + 1] = string.format("To sell: %d (%s)", s.vendor.count, CobysLootSweeper.Utilities.Money(s.vendor.value))
-    status[#status + 1] = string.format("Worth posting: %d", s.post.count)
+    status[#status + 1] = string.format("Sellables: %d", s.post.count)
     status[#status + 1] = string.format("Protected: %d", s.keep.count)
+    status[#status + 1] = string.format("Can't Sell: %d", s.cantsell and s.cantsell.count or 0)
     return CobySuite_CobysLootSweeper.UI.LauncherTooltip({
       title = "Coby's Loot Sweeper", brandColor = CobysLootSweeper.BRAND_COLOR, icon = CobysLootSweeper.ICON,
       status = status, leftClick = "Open Loot Sweeper", rightClick = "Open settings",

@@ -28,12 +28,15 @@ Overview.TILES = {
   { key = "vendor", name = "Vendor", icon = "Interface\\Icons\\INV_Misc_Coin_02", color = "SAGE_GREEN",
     label = "to sell", empty = "nothing to sell yet",
     tip = { "Vendor", "Run loot for a vendor. At a vendor, the quick buttons under the list sell it." } },
-  { key = "post", name = "Post", icon = "Interface\\Icons\\INV_Misc_Coin_17", color = "STATUS_GOLD",
-    label = "AH estimate", empty = "nothing to post yet",
-    tip = { "Post", "Stacks whose AH estimate after the cut meets your Post setting. Check the prices and list them yourself; Loot Sweeper never posts." } },
+  { key = "post", name = "Sellables", icon = "Interface\\Icons\\INV_Misc_Coin_17", color = "STATUS_GOLD",
+    label = "AH estimate", empty = "no sellables yet",
+    tip = { "Sellables", "Trade goods and unbound BoE items. Compare prices, auction them yourself, or choose to vendor them here." } },
   { key = "keep", name = "Protected", icon = "Interface\\Icons\\INV_Shield_06", color = "CAUTION_ORANGE",
     label = "protected", empty = "nothing protected yet",
     tip = { "Protected", "Loot from your runs that Loot Sweeper won't sell by itself. The Why column says what protects each one." } },
+  { key = "cantsell", name = "Can't Sell", icon = "Interface\\Icons\\INV_Misc_QuestionMark", color = "LABEL_GRAY",
+    label = "cannot be sold", empty = "nothing here",
+    tip = { "Can't Sell", "Items vendors will not buy. Review them here before choosing to delete any." } },
   { key = "history", name = "History", icon = "Interface\\Icons\\INV_Misc_Book_09", color = "INFO_BLUE",
     label = "from vendoring", empty = "nothing looted yet", zero = "nothing sold yet", zeroShort = "none sold",
     tip = { "History", "Everything your runs looted and what became of it, with the gold selling it made. Searchable." } },
@@ -67,6 +70,7 @@ local function Plural(n, one, many) return n == 1 and one or (many or one .. "s"
 -- list previews a Bulk sell plan
 function Overview.Model(s, run, preparing, sell, merchant, runName, history, ignored, paused, preview)
   local model = { tiles = { vendor = s.vendor, post = s.post, keep = s.keep,
+    cantsell = s.cantsell or { count = 0, value = 0 },
     history = { count = history and history.looted or 0, value = history and history.copper or 0 },
     ignored = { count = ignored or 0, value = 0 } } }
   model.action = (run or preparing) and "Stop" or "Start"
@@ -97,20 +101,20 @@ function Overview.Model(s, run, preparing, sell, merchant, runName, history, ign
             c.count, Plural(c.count, "item"), Utilities.Money(c.value)) }
     end
   else
-    local total = s.vendor.count + s.post.count + s.keep.count
+    local total = s.vendor.count + s.post.count + s.keep.count + (s.cantsell and s.cantsell.count or 0)
     if total == 0 then
       b = { state = "empty", text = "Nothing waiting yet." }
     elseif merchant and s.vendor.count > 0 then
-      b = { state = "waiting", text = string.format("Ready to sell%s: %d %s for %s. Bulk sell... lets you choose what goes.",
+      b = { state = "waiting", text = string.format("Ready to sell%s: %d %s for %s. Bulk Sell... lets you choose what goes.",
             runName and (" from " .. runName) or "", s.vendor.count, Plural(s.vendor.count, "item"),
             Utilities.Money(s.vendor.value)) }
     elseif runName then
       b = { state = "waiting", text = string.format("Loot from %s is waiting. %s", runName,
-            s.vendor.count > 0 and "Visit any vendor to sell it." or "Look it over on the Post and Protected tabs.") }
+            s.vendor.count > 0 and "Visit any vendor to sell it." or "Check Sellables, Protected and Can't Sell.") }
     else
       local runs = math.max(s.runs or 1, 1)
       b = { state = "waiting", text = string.format("Loot from %d %s is waiting. %s", runs, Plural(runs, "run"),
-            s.vendor.count > 0 and "Visit any vendor to sell it." or "Look it over on the Post and Protected tabs.") }
+            s.vendor.count > 0 and "Visit any vendor to sell it." or "Check Sellables, Protected and Can't Sell.") }
     end
   end
   model.banner = b
@@ -209,7 +213,7 @@ function Overview.Build(window, runButton, onTile, top)
   local tiles = {}
   for i, def in ipairs(Overview.TILES) do tiles[i] = StatTile(def) end
   o.grid = CobySuite_CobysLootSweeper.UI.CreateStatTiles(window, {
-    tiles = tiles, columns = #tiles, minTileWidth = 100, height = Overview.TILE_H, context = o.ctx,
+    tiles = tiles, columns = #tiles, minTileWidth = 88, height = Overview.TILE_H, context = o.ctx,
     selected = function() return o.current end,
     onClick = function(key)
       PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB)

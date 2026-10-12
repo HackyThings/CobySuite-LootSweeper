@@ -1,12 +1,12 @@
 -------------------------------------------------------------------------------
 -- QuickSell: the row of quick buttons over the Vendor list
 --
--- Junk, Bound gear and Other sell their part of the Vendor list in one go,
+-- Junk, Bound Gear and Other sell their part of the Vendor list in one go,
 -- after a confirmation: a bar across the bottom of the window (over these
 -- buttons, never over the list), and while it is up the list shows exactly
 -- those items. Cancel, a tab change or closing the window drops it. Tradeable and Warbound open the one-at-a-time panel (Sell,
 -- Skip, Stop): a friend, the auction house or another of the player's
--- characters might want them. Can't sell walks
+-- characters might want them. Can't Sell walks
 -- through the run loot no vendor buys, to delete it one click at a time.
 -- Every button follows the run picker (All runs or one run). Selling needs
 -- the vendor open; deleting doesn't.
@@ -24,18 +24,16 @@ local GAP = 6
 QuickSell.DEFS = {
   { key = "junk", label = "Junk", noun = "junk item", nouns = "junk items",
     tip = "Every gray item from your runs, whatever the auction house says: players rarely buy them. Sold together after you confirm." },
-  { key = "bound", label = "Bound gear", noun = "piece of bound gear", nouns = "pieces of bound gear",
-    tip = "Soulbound weapons and armor from your runs whose look you already have. Gear near or above what you wear stays in Protected unless you turned that off in settings." },
+  { key = "bound", label = "Bound Gear", noun = "piece of bound gear", nouns = "pieces of bound gear",
+    tip = "Soulbound weapons and armor from your runs whose look you already have. Items with missing appearances or a useful purpose stay in Protected." },
   { key = "other", label = "Other", noun = "other bound item", nouns = "other bound items",
     tip = "Bound items that aren't gear, with nothing protecting them. Sold together after you confirm." },
   { key = "tradeable", label = "Tradeable", step = true, title = "Tradeable loot",
     note = "It can still be traded. Skip it to keep it for a friend or the auction house.",
-    tip = "Items you could still trade or auction, where the AH doesn't pay enough more to be worth a listing (or you chose Sell). You see them one at a time and choose Sell or Skip." },
+    tip = "Tradeable items on Vendor. You see them one at a time and choose Sell or Skip. Trade goods and unbound BoE items are reviewed on Sellables." },
   { key = "warbound", label = "Warbound", step = true, title = "Warbound loot",
     note = "It's bound to your warband. Skip it to keep it for another of your characters.",
     tip = "Items bound to your warband, such as another class's token: another of your characters could use them. You see them one at a time and choose Sell or Skip." },
-  { key = "delete", label = "Can't sell", step = true,
-    tip = "Run loot no vendor buys. You see them one at a time and choose Delete or Skip. Deleting is permanent." },
 }
 
 local q = { buttons = {} }

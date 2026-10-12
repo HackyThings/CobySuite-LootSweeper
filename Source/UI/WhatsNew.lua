@@ -14,7 +14,7 @@ CobysLootSweeper.WhatsNew = WhatsNew
 
 local changelog = CobySuite_CobysLootSweeper.UI.CreateWhatsNewWindow({
   name = "CobysLootSweeperChangelogWindow",
-  title = U.WrapColor(CobysLootSweeper.BRAND_COLOR, "Coby's Loot Sweeper") .. ": What's New",
+  title = U.WrapColor(CobysLootSweeper.BRAND_COLOR, "Coby's Loot Sweeper") .. ": What's new",
   icon = CobysLootSweeper.ICON,
   intro = "What changed in each version of Coby's Loot Sweeper, newest first. Click a version to open or close it.",
   footer = "Open this window any time with " .. U.WrapColor(U.Colors.HELP_COMMAND, "/ls changelog"),

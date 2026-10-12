@@ -4,6 +4,30 @@ All notable changes to Coby's Loot Sweeper are documented here. Format follows [
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-10-11
+
+### Added
+
+- **Sellables tab.** Trade goods and Bind-on-Equip items you haven't bound have their own tab, with their auction house prices beside the vendor price, apart from the gear and junk you sell at a vendor. It replaces Post, and you can still sell them to a vendor from there. Without a price addon they are listed with blank prices.
+- **Can't Sell tab.** Loot no vendor buys is listed on its own tab, with the one-at-a-time delete steps.
+- **Not Protected.** Right-click a Protected row and pick Not Protected: its copies join the normal Vendor, Sellables or Can't Sell list, and nothing is sold by the click. Use Protection Rules undoes it. Quest items, equipment-set pieces, unopened loot and stacks that include items you already had can't be released.
+- **Other addons by the same author.** `/ls addons` lists every addon Cobanyte has released, the same list in each of them: what it does, pictures you can click to see bigger, and its CurseForge link to copy into your browser. Addons you already have are marked. It only opens when you ask, and the guide's last section points to it. The list remembers its size and where you left it.
+- **Reset windows.** `/ls reset windows` puts every window back to its default place and size after you confirm; your settings and data are not touched.
+- **Newer version notice.** When someone in your guild or group has a newer version of Coby's Loot Sweeper, one line in chat says which version is out and which one you have. Your copy shares its version with them quietly, so they hear about a newer one from you too. On by default; turn it off with "Tell me when a newer version is out" in `/ls settings` (Protection).
+
+### Changed
+
+- **Protected holds only what could unlock something.** Mounts, pets, toys and appearances you don't have, recipes you can still learn for a profession you have, anima, the Zereth Mortis materials for mounts and pets, and the items that trade for the Ottuk mounts stay Protected, and the Why says what each is for. Old raid gear, class tokens and "Can be converted" gear now go to Vendor.
+- **Shorter right-click menu.** Not Protected (or Use Protection Rules) and Hide From List replace Sell, Automatic, Remember Sell, Keep Every Copy, Ignore and Use Token. Your kept items and blocked places still live under Your lists.
+- **History:** item names get the room they need; the column widths reset once.
+- The gear and Post price settings are gone from the settings window, since gear is no longer protected for upgrades and Sellables doesn't depend on a price.
+
+### Fixed
+
+- **Protection checks:** items stay Protected when required quest, equipment-set, binding, collection or useful-unlock checks cannot be read. The Why column identifies the unavailable check.
+- **Ignore:** a stack that changed size while ignored comes back held when you un-ignore it, so items of your own added to it can never be sold as run loot.
+- **Stop Run** in a place you track with "Yes, Always Here" or "Yes, This Time" now stays stopped until you leave, instead of starting again after a `/reload` or inside a delve.
+
 ## [0.0.3] - 2026-10-06
 
 ### Added

@@ -3,9 +3,10 @@
 --
 -- The suite's standard settings window (CobySuite.UI.CreateSettingsWindow),
 -- the suite's standard size (680 x 480), built from the suite's styled rows: categories
--- Protection, At the vendor, Auction house, Runs and Your lists
+-- Protection (then the suite's version check, its Updates section), At the
+-- vendor, Auction house, Runs and Your lists
 -- a Guide button beside Defaults, staged edits that Apply
--- writes through Config.Set, Cancel, and Defaults. Built at load, so opening
+-- writes through Config.Set, Undo Edits, and Defaults. Built at load, so opening
 -- it never creates frames in combat; the controls are painted from config on
 -- every show, and a ConfigChanged event repaints an open window. Examples
 -- read the staged values (window:Get) and never stage anything. The addon
@@ -74,36 +75,19 @@ end
 local function GearOn(get) return get(Opt.KEEP_UPGRADES) ~= false end
 
 local function BuildProtection(panel)
-  panel:Section("Always protected", { icon = ICONS.shield })
+  panel:Section("What stays safe", { icon = ICONS.shield })
   panel:Bullets{ items = {
-    { title = "Never offered to sell", icon = ICONS.shield, lines = {
-      "Looks you haven't collected, and mounts, pets and toys you don't have",
-      "Quest items, boxes to open, and items in an equipment set",
-      "Legendary, artifact and heirloom items",
-      "Anything Loot Sweeper can't prove came from a run",
+    { title = "Your items stay yours", icon = ICONS.shield, lines = {
+      "Only proven run loot is sold. A mixed stack is never sold, even partly.",
+      "Quest items, unopened loot and your saved equipment sets stay protected.",
     } },
-    { title = "Protected until you choose Sell on that copy", icon = ICONS.helm, lines = {
-      "Gear near or above what you wear (below)",
-      "A piece from a token you used, while its look isn't collected",
-      "Tokens, recipes, and tradeable loot without a fresh price",
+    { title = "Keep useful unlocks", icon = ICONS.helm, lines = {
+      "Missing collections, learnable recipes, anima and known collectible materials",
+      "Not Protected releases the displayed copies. Use Protection Rules undoes it.",
+      "Trade goods and unbound BoE items go to Sellables, even without an AH price.",
     } },
   } }
-  panel:Section("Gear", { icon = ICONS.helm })
-  panel:Checkbox{
-    key = Opt.KEEP_UPGRADES, label = "Protect possible upgrades",
-    description = "Gear that can reach the item level you wear in its slot stays protected, counting its upgrade track. Off: gear is sorted like any other item.",
-  }
-  panel:Slider{
-    key = Opt.GEAR_MARGIN, label = "Also protect gear this many item levels below", min = 0, max = 30, step = 1,
-    minLabel = "0", maxLabel = "30", enabledWhen = GearOn,
-    description = "0 protects only gear at or above what you wear.",
-  }
-  panel:Preview{ caption = "Example", text = Config.GearExample, font = U.Fonts.BODY, dimWhen = function(get) return not GearOn(get) end }
-  panel:Checkbox{
-    key = Opt.KEEP_WARBOUND_GEAR, label = "Protect this expansion's warbound gear",
-    description = "Gear that is warbound until equipped stays protected, since another of your characters might wear it.",
-  }
-  panel:Note{ text = "With Protect possible upgrades on, other-spec gear uses the same item-level threshold. This expansion's set pieces and convertible gear also stay protected." }
+  CobySuite_CobysLootSweeper.VersionCheck.AddSettingsRows(panel, Opt.VERSION_CHECK)
 end
 
 local function BuildVendor(panel)
@@ -139,32 +123,14 @@ local function BuildAuction(panel)
     { title = "TSM", icon = ICONS.scales,
       state = function() return HasTSM() and "ok" or "off" end,
       description = function()
-        return HasTSM() and "Found. Market estimates for Post." or "Not installed."
+        return HasTSM() and "Found. Market estimates for Sellables." or "Not installed."
       end,
-      tooltip = "TSM's market estimates can put an item in Post, but never count as a fresh price for selling it." },
+      tooltip = "TSM supplies market estimates. Loot Sweeper never lists auctions itself." },
   } }
   panel:Note{
     visibleWhen = function() return not HasAuctionator() and not HasTSM() end,
-    text = "Without a price addon, most tradeable loot stays protected. Junk and bound gear can still be offered when other protections allow it.",
+    text = "Without a price addon, Sellables still lists trade goods and BoE items; their AH prices are blank.",
   }
-  panel:Section("Worth posting", { icon = ICONS.coin })
-  panel:Input{
-    key = Opt.POST_MIN_GOLD, label = "Post when the auction house pays at least this much more", unit = "gold",
-    numeric = true, digits = true, width = 80,
-    description = "For loot other than Bind-on-Equip items: after the 5% cut, and at least twice what a vendor pays.",
-  }
-  panel:Preview{ caption = "Example", text = Config.PostExample, font = U.Fonts.BODY }
-  panel:Slider{
-    key = Opt.BOE_VENDOR_PERCENT, label = "Vendor Bind-on-Equip items within this much of their AH value (%)",
-    min = 0, max = 50, step = 1, minLabel = "0", maxLabel = "50",
-    description = "Posting isn't worth it when a vendor pays nearly as much. Possible upgrades stay protected either way, and vendoring needs a fresh Auctionator price.",
-  }
-  panel:Input{
-    key = Opt.BOE_MIN_GOLD, label = "Also vendor Bind-on-Equip items when the AH pays less than this much more", unit = "gold",
-    numeric = true, digits = true, width = 80,
-    description = "After the 5% cut, compared with the vendor price. A few gold more isn't worth a listing.",
-  }
-  panel:Preview{ caption = "Example", text = Config.BoEExample, font = U.Fonts.BODY }
   panel:Section("Fresh prices", { icon = ICONS.watch })
   panel:Dropdown{
     key = Opt.MAX_PRICE_AGE_DAYS, label = "Trust an Auctionator price for",
@@ -174,18 +140,18 @@ local function BuildAuction(panel)
     enabledWhen = function() return HasAuctionator() end,
     description = function()
       if not HasAuctionator() then return "Needs Auctionator." end
-      return "Tradeable loot with an older price stays protected until you scan again."
+      return "Older quotes remain estimates; scan again before choosing between the AH and a vendor."
     end,
   }
   panel:Checkbox{
-    key = Opt.SHOW_AT_AUCTION_HOUSE, label = "Open beside the auction house when something is worth posting",
-    description = "The window opens on its Post tab.",
+    key = Opt.SHOW_AT_AUCTION_HOUSE, label = "Open beside the auction house when Sellables has items",
+    description = "The window opens on Sellables.",
   }
 end
 
 local function BuildRuns(panel)
   panel:Section("Tracking", { icon = ICONS.map })
-  panel:Note{ text = "Runs start by themselves in dungeons and raids from past expansions. Anywhere else, press Start run in the window or type /ls start." }
+  panel:Note{ text = "Runs start by themselves in dungeons and raids from past expansions. Anywhere else, press Start Run in the window or type /ls start." }
   panel:Checkbox{
     key = Opt.ANNOUNCE, label = "Say in chat when a run starts and ends",
     description = "The end line sums up what is waiting.",
@@ -231,7 +197,7 @@ local window = UI.CreateSettingsWindow({
   },
 })
 
--- For the staged-value scenes (Verify) and the Screens suite (stage, look, then Cancel)
+-- For the staged-value scenes (Verify) and the Screens suite (stage, look, then undo)
 Config._test = { window = window }
 
 -------------------------------------------------------------------------------

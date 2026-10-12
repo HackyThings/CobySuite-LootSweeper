@@ -6,7 +6,7 @@
 -- icon and a [Track this run] link (Runs) and a chirp. Only with the
 -- offerToast setting on (off by default, Task #252) a toast near the top
 -- of the screen (the shared CobySuite.UI.NewToast) asks in place too: Yes,
--- always here / Yes, this time / No as its own buttons, over a bar that
+-- always here / Yes, This Time / No as its own buttons, over a bar that
 -- drains for TOAST_SECONDS (Task #246). When the bar runs out the toast
 -- goes and nothing is answered: the offer stands, and the chat link asks
 -- again until the player leaves. Open(id): the same question as the
@@ -75,8 +75,8 @@ end
 -- The toast's buttons for the offer id: the prompt's own three choices
 function TrackOffer.ToastButtons(id)
   return {
-    { text = "Yes, always here", onClick = function() AnswerFromToast(id, "always") end },
-    { text = "Yes, this time", onClick = function() AnswerFromToast(id, "once") end },
+    { text = "Yes, Always Here", onClick = function() AnswerFromToast(id, "always") end },
+    { text = "Yes, This Time", onClick = function() AnswerFromToast(id, "once") end },
     { text = "No", width = 60, side = "right", onClick = function() AnswerFromToast(id, "no") end },
   }
 end
@@ -93,8 +93,8 @@ local function Build()
     name = "CobysLootSweeperTrackOfferPrompt", title = "Track this run?", icon = CobysLootSweeper.ICON,
     width = 440,
     buttons = {
-      { key = "Always", text = "Yes, always here", onClick = function() Answer("always") end },
-      { key = "Once", text = "Yes, this time", width = 120, onClick = function() Answer("once") end },
+      { key = "Always", text = "Yes, Always Here", onClick = function() Answer("always") end },
+      { key = "Once", text = "Yes, This Time", width = 120, onClick = function() Answer("once") end },
       { key = "No", text = "No", width = 90, side = "right", onClick = function() Answer("no") end },
     },
   })
@@ -120,7 +120,7 @@ function TrackOffer.Open(id)
   end
   shown = offer
   prompt:Ask(string.format(
-    "Track %s like old content? Only the loot from this run can be sold, and gear near what you wear stays protected.\n\nYes, always here remembers it under Your lists, and it then starts by itself.",
+    "Track %s like old content? Only the loot from this run can be sold, and gear near what you wear stays protected.\n\nYes, Always Here remembers it under Your lists, and it then starts by itself.",
     offer.name or "this place"))
   return true
 end
