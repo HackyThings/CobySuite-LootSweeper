@@ -76,6 +76,7 @@ Rules.UNREAD_REASONS = {
   set = "Cannot check your saved equipment sets",
   warbound = "Cannot check this item's binding",
   collectible = "Cannot check your collection yet",
+  decor = "Cannot check whether this is housing decor",
   anima = "Cannot check whether this adds anima",
   ["mount purchase"] = "Cannot check whether you own its Ottuk mount",
   recipe = "Cannot check whether you can learn this recipe",
@@ -99,6 +100,7 @@ local function SoftKeep(facts)
   if facts.purpose then return facts.purpose end
   local c = facts.collectible
   if c and c.collected == false then return "You have not collected this " .. (c.kind or "item") end
+  if facts.decor then return "Housing decor: you can place it more than once, so every copy is kept" end
   if facts.appearance == "missing" then return "You have not collected this appearance" end
 end
 

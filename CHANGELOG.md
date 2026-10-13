@@ -4,6 +4,15 @@ All notable changes to Coby's Loot Sweeper are documented here. Format follows [
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-12
+
+Coby's Loot Sweeper is out of beta.
+
+### Changed
+
+- **Housing decor is protected.** Decor you loot stays on the Protected tab, whether or not you already own some, since decor can be placed more than once. Right-click and pick Not Protected to sell a copy anyway.
+- **Qty column.** The item lists, History and Ignored show how many of each item in a column of their own, instead of after the item's name.
+
 ## [0.0.4] - 2026-10-11
 
 ### Added

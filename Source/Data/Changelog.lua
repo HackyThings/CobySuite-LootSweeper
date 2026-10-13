@@ -13,6 +13,16 @@
 -------------------------------------------------------------------------------
 CobysLootSweeper.Data.Changelog = {
   {
+    version = "1.0.0",
+    title = "Out of beta",
+    date = "2026-10-12",
+    changed = {
+      "Housing decor: always Protected, since decor can be placed more than once",
+      "Qty column: each list shows how many of an item, in a column of its own",
+      "Overview tiles: one row of six, with the icon beside each name",
+    },
+  },
+  {
     version = "0.0.4",
     title = "Simpler: Sellables, Can't Sell and Not Protected",
     date = "2026-10-11",

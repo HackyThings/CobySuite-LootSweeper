@@ -16,6 +16,9 @@
 --   appearance   "collected", "missing", "unknown" (not readable yet) or
 --                "none" (no look to collect: jewelry, trinkets, non-gear)
 --   collectible  nil, or { kind = "mount" | "pet" | "toy", collected }
+--   decor        housing decor (an item of the Housing class the catalog files as
+--                decor): true, or nil. Decor can be placed any number of times,
+--                so it is protected whether or not one is owned
 --   level        gear only (a slot with a look, neck, finger, trinket): its
 --                real item level in this bag slot (GetCurrentItemLevel), nil
 --                for anything else
@@ -37,7 +40,7 @@
 --                current one
 --   convertible  gear: the game says this character can convert it
 --   unread       nil, or the first protection the game wouldn't answer
---                ("quest", "set", "warbound", "collectible", "convertible": the
+--                ("quest", "set", "warbound", "collectible", "decor", "convertible": the
 --                call errored or answered in secret); a hard Keep (FACT-01,
 --                Task #311). A real "no" (not a mount, not in a set) is no
 --                failure
@@ -108,6 +111,7 @@ local seams = {
   PetOwned = function(speciesID) return C_PetJournal.GetNumCollectedInfo(speciesID) end,
   ToyInfo = function(itemID) return C_ToyBox.GetToyInfo(itemID) end,
   HasToy = function(itemID) return PlayerHasToy(itemID) end,
+  DecorEntry = function(itemID) return C_HousingCatalog.GetCatalogEntryInfoByItem(itemID) end,
   Anima = function(itemID) return C_Item.IsAnimaItemByID(itemID) end,
   LearnSet = function(itemID) return C_Item.GetItemLearnTransmogSet(itemID) end,
   SetInfo = function(setID) return C_TransmogSets.GetSetInfo(setID) end,
@@ -208,6 +212,25 @@ function Facts.Collectible(itemID, classID)
   local toy, toyFailed = Toy(itemID)
   if toy then return toy end
   return nil, mountFailed or petFailed or toyFailed
+end
+
+-- Housing decor (documented: C_HousingCatalog.GetCatalogEntryInfoByItem(item)
+-- answers a catalog entry whose entryType is Enum.HousingCatalogEntryType.Decor,
+-- 1, or nil for an item that is no catalog object). Only items of the Housing
+-- class (20) are asked. A Decor-subclass item (0) always has an entry, so a nil
+-- answer for it means the catalog is not loaded yet: failed, never "not decor"
+local CLASS_HOUSING, SUBCLASS_DECOR, ENTRY_DECOR = 20, 0, 1
+
+-- Decor(itemID, classID, subClassID) -> decor, failed
+function Facts.Decor(itemID, classID, subClassID)
+  if classID ~= CLASS_HOUSING then return nil end
+  local ok, entry = Try(seams.DecorEntry, itemID)
+  if not ok or IsSecret(entry) then return nil, true end
+  if entry == nil then return nil, subClassID == SUBCLASS_DECOR end
+  if type(entry) ~= "table" or Utilities.IsSecretTable(entry) then return nil, true end
+  local okT, entryType = pcall(function() return entry.entryType end)
+  if not okT or IsSecret(entryType) or type(entryType) ~= "number" then return nil, true end
+  return entryType == ENTRY_DECOR or nil
 end
 
 -- Quest(bag, slot) -> quest, failed: the game always answers with a table
@@ -434,6 +457,9 @@ function Facts.Read(bag, slot, info)
     local collectibleFailed
     facts.collectible, collectibleFailed = Facts.Collectible(itemID, facts.classID)
     if collectibleFailed then Unread(facts, "collectible") end
+    local decorFailed
+    facts.decor, decorFailed = Facts.Decor(itemID, facts.classID, facts.subClassID)
+    if decorFailed then Unread(facts, "decor") end
     facts.level = GearLevel(loc, facts.equipLoc)
     facts.gear = Facts.IsStatGear(facts)
     facts.usable, facts.hasUse = Facts.Usable(link)

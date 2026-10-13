@@ -46,6 +46,8 @@ local RUN_BAR_H = 32
 
 local COLUMNS = {
   { key = "name", label = "Item", width = 230, sortable = true },
+  { key = "qty", label = "Qty", width = 40, justify = "RIGHT", sortable = true,
+    tooltip = "How many are in this row" },
   { key = "ilvl", label = "iLvl", width = 44, justify = "RIGHT", sortable = true,
     tooltip = "Item level, for gear" },
   { key = "vendor", label = "Vendor", width = 70, justify = "RIGHT", sortable = true,
@@ -73,6 +75,7 @@ local function Seller() return CobysLootSweeper.Seller end
 -------------------------------------------------------------------------------
 local SORT_VALUE = {
   name = function(row) return (row.facts.name or ""):lower() end,
+  qty = function(row) return row.units or row.facts.count or 1 end,
   ilvl = function(row) return row.facts.level or -1 end,
   vendor = function(row) return row.vendorValue or 0 end,
   ah = function(row) return row.ahValue or -1 end,
@@ -156,28 +159,27 @@ local function PaintRow(row, data)
   local r, g, b = QualityColor(facts.quality)
   row.IconFrame:SetColorTexture(r, g, b, 0.9)
   local name = facts.name or ("item " .. tostring(facts.itemID))
-  local units = data.units or facts.count or 1
-  if units > 1 then name = name .. " x" .. units end
   row.cells[1]:SetText(name)
   row.cells[1]:SetTextColor(r, g, b)
-  row.cells[2]:SetText(facts.level and tostring(facts.level) or "")
-  row.cells[3]:SetText(Utilities.GoldShort(data.vendorValue))
+  row.cells[2]:SetText(tostring(data.units or facts.count or 1))
+  row.cells[3]:SetText(facts.level and tostring(facts.level) or "")
+  row.cells[4]:SetText(Utilities.GoldShort(data.vendorValue))
   -- AH: the lot's estimate after the cut; "warbound" or "bound" when the AH
   -- won't take it (Rules gives those no estimate), "-" when no price addon
   -- knows it
   local gray = U.Colors.LABEL_GRAY
   if data.ahValue then
-    row.cells[4]:SetText(Utilities.GoldShort(data.ahValue))
-    row.cells[4]:SetTextColor(unpack(U.Colors.HIGHLIGHT_WHITE))
+    row.cells[5]:SetText(Utilities.GoldShort(data.ahValue))
+    row.cells[5]:SetTextColor(unpack(U.Colors.HIGHLIGHT_WHITE))
   else
-    row.cells[4]:SetText(facts.accountBound and "warbound" or (facts.bound and "bound" or "-"))
-    row.cells[4]:SetTextColor(gray[1], gray[2], gray[3])
+    row.cells[5]:SetText(facts.accountBound and "warbound" or (facts.bound and "bound" or "-"))
+    row.cells[5]:SetTextColor(gray[1], gray[2], gray[3])
   end
   local why = data.reason or ""
   if data.pref then why = why .. (data.remembered and " (remembered)" or "") end
-  row.cells[5]:SetText(why)
+  row.cells[6]:SetText(why)
   local c = WhyColor(data)
-  row.cells[5]:SetTextColor(c[1], c[2], c[3])
+  row.cells[6]:SetTextColor(c[1], c[2], c[3])
   U.AddAlternatingRowBg(row, data.index or 0)
 end
 
@@ -909,7 +911,7 @@ local function Build()
     name = WINDOW_NAME,
     title = U.WrapColor(CobysLootSweeper.BRAND_COLOR, "Coby's Loot Sweeper"),
     icon = CobysLootSweeper.ICON,
-    width = 640, height = 620,
+    width = 800, height = 600,
     resizable = { minWidth = 600, minHeight = 520, maxWidth = 1100, maxHeight = 1000 },
     escapeCloses = true,
     persist = { svTable = function() return COBYS_LOOT_SWEEPER_WINDOW_STATE end, key = "main" },

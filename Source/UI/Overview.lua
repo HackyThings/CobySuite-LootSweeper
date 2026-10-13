@@ -1,12 +1,12 @@
 -------------------------------------------------------------------------------
--- Overview: the top of the Loot Sweeper window, a status banner and five
+-- Overview: the top of the Loot Sweeper window, a status banner and six
 -- tiles, in the look of Recollect's curator dashboard
 --
 -- The banner: a tinted strip with an accent stripe, an icon and one sentence
 -- in the state's color, which follows the run as it happens ("Tracking Black
 -- Temple: 42 new items so far, worth about 1,240g"), and a progress bar while
--- selling; Start / Stop sits at its right. The tiles (Vendor, Post,
--- Protected, History and Ignored) show counts and values, explain
+-- selling; Start / Stop sits at its right. The tiles (Vendor, Sellables,
+-- Protected, Can't Sell, History and Ignored) show their item counts in one row, explain
 -- themselves on hover, and pick what shows below (they are its tabs;
 -- History and Ignored swap in their own views). Pure painting from
 -- Overview.Model(), which the window builds from the pile, the run and the
@@ -26,22 +26,16 @@ local GAP = U.Spacing.GROUP_GAP
 -- Colors and pictures per tile and banner state
 Overview.TILES = {
   { key = "vendor", name = "Vendor", icon = "Interface\\Icons\\INV_Misc_Coin_02", color = "SAGE_GREEN",
-    label = "to sell", empty = "nothing to sell yet",
     tip = { "Vendor", "Run loot for a vendor. At a vendor, the quick buttons under the list sell it." } },
   { key = "post", name = "Sellables", icon = "Interface\\Icons\\INV_Misc_Coin_17", color = "STATUS_GOLD",
-    label = "AH estimate", empty = "no sellables yet",
     tip = { "Sellables", "Trade goods and unbound BoE items. Compare prices, auction them yourself, or choose to vendor them here." } },
   { key = "keep", name = "Protected", icon = "Interface\\Icons\\INV_Shield_06", color = "CAUTION_ORANGE",
-    label = "protected", empty = "nothing protected yet",
     tip = { "Protected", "Loot from your runs that Loot Sweeper won't sell by itself. The Why column says what protects each one." } },
-  { key = "cantsell", name = "Can't Sell", icon = "Interface\\Icons\\INV_Misc_QuestionMark", color = "LABEL_GRAY",
-    label = "cannot be sold", empty = "nothing here",
+  { key = "cantsell", name = "Can't Sell", icon = "Interface\\Icons\\INV_Misc_QuestionMark", color = "LIGHT_GRAY",
     tip = { "Can't Sell", "Items vendors will not buy. Review them here before choosing to delete any." } },
   { key = "history", name = "History", icon = "Interface\\Icons\\INV_Misc_Book_09", color = "INFO_BLUE",
-    label = "from vendoring", empty = "nothing looted yet", zero = "nothing sold yet", zeroShort = "none sold",
     tip = { "History", "Everything your runs looted and what became of it, with the gold selling it made. Searchable." } },
-  { key = "ignored", name = "Ignored", icon = "Interface\\Icons\\INV_Misc_Eye_01", color = "LABEL_GRAY",
-    label = "ignored", empty = "nothing ignored", zero = "can be un-ignored",
+  { key = "ignored", name = "Ignored", icon = "Interface\\Icons\\INV_Misc_Eye_01", color = "LIGHT_GRAY",
     tip = { "Ignored", "Copies you chose to ignore. They stay in your bags; un-ignore one to list it again. Searchable." } },
 }
 
@@ -62,17 +56,17 @@ local function Plural(n, one, many) return n == 1 and one or (many or one .. "s"
 -- The model: what the banner says, and each tile's numbers
 -------------------------------------------------------------------------------
 -- Model(s, run, preparing, sell, merchant, runName, history, ignored, paused, preview) -> {
--- banner = { state, text, share }, tiles = { [key] = { count, value } },
+-- banner = { state, text, share }, tiles = { [key] = { count } },
 -- action = "Start" | "Stop" }. runName: the run picked in the window (s is
--- then its loot alone); history: { looted, copper } for the History tile;
+-- then its loot alone); history: { looted } for the History tile;
 -- ignored: how many copies are ignored; paused: the window holding a run's
 -- loot back (Fences.Paused), or nil; preview: { stacks, copper } while the
 -- list previews a Bulk sell plan
 function Overview.Model(s, run, preparing, sell, merchant, runName, history, ignored, paused, preview)
   local model = { tiles = { vendor = s.vendor, post = s.post, keep = s.keep,
     cantsell = s.cantsell or { count = 0, value = 0 },
-    history = { count = history and history.looted or 0, value = history and history.copper or 0 },
-    ignored = { count = ignored or 0, value = 0 } } }
+    history = { count = history and history.looted or 0 },
+    ignored = { count = ignored or 0 } } }
   model.action = (run or preparing) and "Stop" or "Start"
   local b
   if sell and sell.phase == "selling" then
@@ -166,35 +160,19 @@ end
 
 local function Numbers(ctx, def) return ctx.tiles and ctx.tiles[def.key] or {} end
 
--- A tile's live fields, from the model Paint last gave (ctx.tiles): its name
--- in its color and the count ("Vendor  38"), then what it holds ("284g to
--- sell", "nothing to sell yet"; short: "284g", "none yet"). On the shared
--- stat tiles (Task #116): each tile's own color as its accent, the large
--- font giving way to the body font and the line to its short form when the
--- tile is narrow (the fit Verify's q90-01 asked for). An empty tile is
--- never faded, since it stays clickable: its gray name and count and its
--- "none yet" say it is empty (Task #235)
+-- A tile's live fields, from the model Paint last gave (ctx.tiles): on the
+-- shared compact stat tiles (Task #375) the icon with the tile's name beside
+-- it in the tile's own color, always readable, then the count centered under
+-- them, white, or softer gray at zero; no line saying what a tile holds. An
+-- empty tile is never faded, since it stays clickable (Task #235)
 local function StatTile(def)
   local c = Color(def.color)
+  local function Count(ctx) return Numbers(ctx, def).count or 0 end
   return {
     key = def.key, icon = def.icon, accent = c,
-    value = function(ctx)
-      local count = Numbers(ctx, def).count or 0
-      return U.WrapColor(U.ColorToHex(count > 0 and c or U.Colors.LABEL_GRAY), def.name) .. "  "
-        .. U.WrapColor(U.ColorToHex(count > 0 and U.Colors.HIGHLIGHT_WHITE or U.Colors.DISABLED_GRAY), tostring(count))
-    end,
-    label = function(ctx)
-      local n = Numbers(ctx, def)
-      if (n.count or 0) == 0 then return def.empty end
-      if (n.value or 0) > 0 then return Utilities.GoldShort(n.value) .. " " .. def.label end
-      return def.zero or def.label
-    end,
-    labelShort = function(ctx)
-      local n = Numbers(ctx, def)
-      if (n.count or 0) == 0 then return "none yet" end
-      if (n.value or 0) > 0 then return Utilities.GoldShort(n.value) end
-      return def.zeroShort
-    end,
+    value = function(ctx) return tostring(Count(ctx)) end,
+    color = function(ctx) return Count(ctx) > 0 and U.Colors.HIGHLIGHT_WHITE or U.Colors.LABEL_GRAY end,
+    label = def.name, labelColor = c,
     tooltipFill = function(tip)
       tip:SetText(def.tip[1], 1, 1, 1)
       tip:AddLine(def.tip[2], 1, 1, 1, true)
@@ -213,7 +191,7 @@ function Overview.Build(window, runButton, onTile, top)
   local tiles = {}
   for i, def in ipairs(Overview.TILES) do tiles[i] = StatTile(def) end
   o.grid = CobySuite_CobysLootSweeper.UI.CreateStatTiles(window, {
-    tiles = tiles, columns = #tiles, minTileWidth = 88, height = Overview.TILE_H, context = o.ctx,
+    tiles = tiles, columns = 6, minTileWidth = 80, height = Overview.TILE_H, compact = true, context = o.ctx,
     selected = function() return o.current end,
     onClick = function(key)
       PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB)
@@ -224,6 +202,7 @@ function Overview.Build(window, runButton, onTile, top)
   o.grid:SetPoint("TOPRIGHT", window, "TOPRIGHT", -12, y)
   o.tiles = o.grid.Tiles   -- Verify's tooltip grid reads them
   Overview.frames = o
+  -- Six compact tiles in one row: each is about 122 wide at the 800 default and 89 at the 600 minimum
   return y - Overview.TILE_H - GAP
 end
 

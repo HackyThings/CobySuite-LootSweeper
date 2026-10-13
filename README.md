@@ -15,11 +15,12 @@ Sell the loot from your old-raid and dungeon runs, and see what is worth auction
 
 ## Features
 
-- **Four lists, each with a reason:** **Vendor** (gear and junk, safe to sell), **Sellables** (trade goods and Bind-on-Equip items, with auction prices), **Protected** (kept back because it unlocks something, and what) and **Can't Sell** (loot no vendor buys).
-- **Bulk sell:** All junk, Greens, Consumables, Materials, Sellables or Everything, or your own mix by quality and kind.
+- **Six tabs, one row of tiles:** the tiles across the top count what waits on each tab and open it when clicked. A banner above them says what the run is doing, with **Start Run** or **Stop Run** beside it.
+- **Four lists, each with a reason:** **Vendor** (gear and junk, safe to sell), **Sellables** (trade goods and Bind-on-Equip items, with auction estimates), **Protected** (kept back because it unlocks something, and what) and **Can't Sell** (loot no vendor buys). Every row shows its **Qty**, what a vendor pays, the auction estimate and a **Why**.
+- **Bulk sell:** preview a group before anything sells: All junk, Greens, Consumables, Materials, Sellables or Everything, or your own mix by quality and kind. It sells only from the tab you opened it on: **Bulk Sell...** on Vendor, **Vendor These Items...** on Sellables.
 - **One at a time:** the Tradeable and Warbound buttons on Vendor review their items singly, with both prices and the difference shown.
-- **Protected means it can unlock something:** mounts, pets, toys and appearances you don't have, recipes you can still learn, anima, and the materials and items that trade for mounts. Old raid gear is just Vendor.
-- **Your choices:** right-click a Protected row and pick **Not Protected** to move it to the normal list, or **Hide From List** on any row.
+- **Protected means it can unlock something:** mounts, pets, toys and appearances you don't have, recipes you can still learn for a profession you have, anima, and the materials and items that trade for mounts. Housing decor is always kept, whether or not you own some, since decor can be placed more than once. Old raid gear is just Vendor.
+- **Your choices:** right-click a Protected row and pick **Not Protected** to move it to the normal list (**Use Protection Rules** puts it back), or **Hide From List** on any row to move it to the Ignored tab, where **Un-ignore** lists it again.
 - **Your lists:** what you keep, remembered Sells and blocked places, per character or shared.
 - **History:** what every run looted and what became of it, with the gold it made.
 - **Price addons:** Auctionator or TSM for auction estimates; both optional.
@@ -43,13 +44,13 @@ Sell the loot from your old-raid and dungeon runs, and see what is worth auction
 /ls help              Show this help
 ```
 
-`/sweep`, `/lootsweeper` and `/lootsweep` work the same. The addon list on the minimap: left-click opens the window, right-click the settings.
+`/sweep`, `/lootsweeper` and `/lootsweep` work the same. Loot Sweeper's entry in the minimap's addon list: left-click opens the window, right-click the settings.
 
 ## Settings
 
 `/ls settings`, or right-click the minimap addon list entry. Changes wait for **Apply**.
 
-- **Protection:** what stays safe, and the newer-version notice.
+- **Protection:** what stays safe, and the switch for the newer-version notice.
 - **At the vendor:** the vendor button, pausing every 12 sales, the trade prompt, asking before a bulk sale.
 - **Auction house:** your price addons, how old a price may be, and whether the window opens beside the auction house.
 - **Runs:** the chat line when a run starts and ends, and whether this season's content also asks with a notice on screen.

@@ -22,7 +22,8 @@ local SCROLLBAR_WIDTH = 10
 
 local COLUMNS = {
   { key = "when", label = "When", width = 110, sortable = true },
-  { key = "name", label = "Item", width = 320, sortable = true },
+  { key = "name", label = "Item", width = 280, sortable = true },
+  { key = "qty", label = "Qty", width = 40, justify = "RIGHT", sortable = true, tooltip = "How many were looted" },
   { key = "ilvl", label = "iLvl", width = 44, justify = "RIGHT", sortable = true, tooltip = "Item level, for gear" },
   { key = "run", label = "Run", width = 100, sortable = true },
   { key = "outcome", label = "What happened", stretch = true, sortable = true },
@@ -70,6 +71,7 @@ end
 local SORT_VALUE = {
   when = function(rec) return rec.at or 0 end,
   name = function(rec) return Name(rec):lower() end,
+  qty = function(rec) return rec.count or 1 end,
   ilvl = function(rec) return Level(rec) or -1 end,
   run = function(rec) return (rec.run or ""):lower() end,
   outcome = function(rec) return (OutcomeText(rec)):lower() end,
@@ -135,14 +137,15 @@ local function InitRow(row, rec)
   row.cells[1]:SetText(Utilities.When(rec.at) or "")
   local quality = rec.link and C_Item.GetItemQualityByID(rec.link)
   local c = quality and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality]
-  row.cells[2]:SetText(Name(rec) .. ((rec.count or 1) > 1 and (" x" .. rec.count) or ""))
+  row.cells[2]:SetText(Name(rec))
   if c then row.cells[2]:SetTextColor(c.r, c.g, c.b) else row.cells[2]:SetTextColor(unpack(U.Colors.HIGHLIGHT_WHITE)) end
+  row.cells[3]:SetText(tostring(rec.count or 1))
   local level = Level(rec)
-  row.cells[3]:SetText(level and tostring(level) or "")
-  row.cells[4]:SetText(rec.run or "")
+  row.cells[4]:SetText(level and tostring(level) or "")
+  row.cells[5]:SetText(rec.run or "")
   local outcome, color = OutcomeText(rec)
-  row.cells[5]:SetText(outcome)
-  row.cells[5]:SetTextColor(color[1], color[2], color[3])
+  row.cells[6]:SetText(outcome)
+  row.cells[6]:SetTextColor(color[1], color[2], color[3])
   U.AddAlternatingRowBg(row, rec.index or 0)
 end
 

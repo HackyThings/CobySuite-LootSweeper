@@ -3,7 +3,7 @@
 --
 -- A search box (item or run name) on the run bar's row, and the suite's
 -- sortable table (CobySuite.UI.CreateSortTable) under it: item (icon and
--- quality color), iLvl, run, when it was ignored. Click a row to pick it;
+-- quality color), Qty, iLvl, run, when it was ignored. Click a row to pick it;
 -- Un-ignore (the button, or a row's right-click) puts the copy back in the
 -- pile as it was (Runs.Unignore). Copies that left the bags drop off the
 -- list by themselves (Ledger).
@@ -49,7 +49,7 @@ function IgnoredView.Rows(query)
   end
   local value = {
     when = function(r) return r.at or 0 end, name = function(r) return strlower(r.name) end,
-    ilvl = function(r) return Level(r) or -1 end, run = function(r) return strlower(r.run) end,
+    qty = function(r) return r.count end, ilvl = function(r) return Level(r) or -1 end, run = function(r) return strlower(r.run) end,
   }
   local get = value[sortKey] or value.when
   table.sort(rows, function(a, b)
@@ -105,8 +105,10 @@ function IgnoredView.Build(window, top, bottom, barTop)
   v.table = UI.CreateSortTable(frame, {
     pool = 24, rowHeight = 22, minStretch = 140,
     columns = {
-      { key = "name", label = "Item", stretch = true, text = function(r) return r.name .. (r.count > 1 and (" x" .. r.count) or "") end,
+      { key = "name", label = "Item", stretch = true, text = function(r) return r.name end,
         color = Quality, icon = function(r) return C_Item.GetItemIconByID(r.itemID) end },
+      { key = "qty", label = "Qty", width = 40, justify = "RIGHT", tooltip = "How many were ignored",
+        text = function(r) return tostring(r.count) end },
       { key = "ilvl", label = "iLvl", width = 44, justify = "RIGHT", tooltip = "Item level, for gear",
         text = function(r) local l = Level(r) return l and tostring(l) or "" end },
       { key = "run", label = "Run", width = 140, text = function(r) return r.run end },
