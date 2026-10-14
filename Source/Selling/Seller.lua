@@ -124,7 +124,7 @@ end
 -------------------------------------------------------------------------------
 -- Stopping
 -------------------------------------------------------------------------------
-local function Plural(n, one, many) return n == 1 and one or many end
+local Plural = CobySuite_CobysLootSweeper.Utilities.Plural
 
 local function DoneMessage()
   local skipped = state.skipped > 0 and string.format(" %d skipped: look them over.", state.skipped) or ""
@@ -269,7 +269,7 @@ end
 local TRADE_QUESTION = "Selling stopped at the game's trade prompt. Sell the item by hand, or turn on \"Sell group-tradeable loot without the game's extra prompt\" in Settings, At the vendor."
 function Seller.OnTradeQuestion(link)
   if state.phase ~= "selling" or not inFlight or not inFlight.inCall then return false end
-  local itemID = type(link) == "string" and tonumber(link:match("item:(%d+)"))
+  local itemID = CobySuite_CobysLootSweeper.Utilities.IDFromLink(link)
   if itemID ~= inFlight.target.itemID then return false end
   if not seams.SkipTradeQuestion() then
     pcall(seams.ClearCursor)

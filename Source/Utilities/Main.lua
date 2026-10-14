@@ -36,8 +36,7 @@ end
 
 -- A whole positive number (an item ID, a count)
 function Utilities.IsPositiveInteger(value)
-  return type(value) == "number" and not Utilities.IsSecret(value)
-    and CobySuite_CobysLootSweeper.Utilities.IsFiniteNumber(value) and value > 0 and value == math.floor(value)
+  return CobySuite_CobysLootSweeper.Utilities.IsWholeNumber(value, 1)
 end
 
 -- "12g", "3s 40c": the plain money text used in lists and messages

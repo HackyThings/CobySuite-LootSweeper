@@ -100,12 +100,9 @@ local SKIP_TEXT = {
 -------------------------------------------------------------------------------
 -- Painting
 -------------------------------------------------------------------------------
--- Money in the game's coins (gold, silver and copper icons) when the shared
--- formatter is there, else as text
+-- Money in the game's coins (gold, silver and copper icons)
 local function Coins(copper)
-  local U2 = CobySuite_CobysLootSweeper.Utilities
-  if U2.FormatMoneyIcons then return U2.FormatMoneyIcons(copper, 13) end
-  return Utilities.Money(copper)
+  return U.FormatMoneyIcons(copper, 13)
 end
 
 -- The price block (Task #160): what a vendor pays, what the AH would after
@@ -137,8 +134,7 @@ function StepPanel.PriceLines(row)
 end
 
 local function QualityHex(quality)
-  local c = quality and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality]
-  return c and c.hex or ("|cFF" .. U.ColorToHex(U.Colors.HIGHLIGHT_WHITE))
+  return "|cFF" .. U.QualityHex(quality)
 end
 
 -- Why the step's action can't run now, or nil when it can

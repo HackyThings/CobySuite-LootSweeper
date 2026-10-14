@@ -36,20 +36,18 @@ function VendorButton.MarkSeen()
   VendorButton.Refresh()
 end
 
-local function Tooltip(self)
-  GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-  GameTooltip_SetTitle(GameTooltip, "Coby's Loot Sweeper")
+local function Tooltip(tip)
+  GameTooltip_SetTitle(tip, "Coby's Loot Sweeper")
   local s = CobysLootSweeper.Pile.Summary()
   if s.vendor.count > 0 then
-    GameTooltip_AddNormalLine(GameTooltip, string.format("%d %s to sell for %s.", s.vendor.count,
-      s.vendor.count == 1 and "item" or "items", Utilities.Money(s.vendor.value)))
+    GameTooltip_AddNormalLine(tip, string.format("%d %s to sell for %s.", s.vendor.count,
+      CobySuite_CobysLootSweeper.Utilities.Plural(s.vendor.count, "item"), Utilities.Money(s.vendor.value)))
   end
   if s.post.count > 0 then
-    GameTooltip_AddNormalLine(GameTooltip, string.format("%d worth checking on the auction house.", s.post.count))
+    GameTooltip_AddNormalLine(tip, string.format("%d worth checking on the auction house.", s.post.count))
   end
-  if VendorButton.HasNew() then GameTooltip_AddHighlightLine(GameTooltip, "New loot since you last looked.") end
-  GameTooltip_AddInstructionLine(GameTooltip, "Click to open Loot Sweeper beside the vendor.")
-  GameTooltip:Show()
+  if VendorButton.HasNew() then GameTooltip_AddHighlightLine(tip, "New loot since you last looked.") end
+  GameTooltip_AddInstructionLine(tip, "Click to open Loot Sweeper beside the vendor.")
 end
 
 local function Build()
@@ -70,8 +68,7 @@ local function Build()
   button.Ants:ClearAllPoints()
   button.Ants:SetPoint("TOPLEFT", -1, 1)
   button.Ants:SetPoint("BOTTOMRIGHT", 1, -1)
-  button:SetScript("OnEnter", Tooltip)
-  button:SetScript("OnLeave", GameTooltip_Hide)
+  CobySuite_CobysLootSweeper.UI.AddDynamicTooltip(button, Tooltip, { fillable = true })
   button:SetScript("OnClick", function()
     PlaySound(SOUNDKIT.IG_MAINMENU_OPEN)
     local merchant = Merchant()

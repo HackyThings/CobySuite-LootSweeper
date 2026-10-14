@@ -59,7 +59,7 @@ local function PlaceLabel(list, id, label)
   return "#" .. id
 end
 
-local function Plain(text) return (text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+local Plain = U.StripColors
 
 local function RemovedSet(edits)
   local removed = {}

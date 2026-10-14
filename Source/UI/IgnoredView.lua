@@ -15,6 +15,10 @@ local U = CobySuite_CobysLootSweeper.Utilities
 local UI = CobySuite_CobysLootSweeper.UI
 local Utilities = CobysLootSweeper.Utilities
 
+-- Rows built up front: the window grows to 1000 tall (MainWindow), which
+-- leaves about 34 rows of 22 under the table's header; a few more for margin
+local POOL_ROWS = 40
+
 local v = {}
 local search = ""
 local sortKey, ascending = "when", false
@@ -77,8 +81,8 @@ end
 
 local function Quality(row)
   local q = row.link and C_Item.GetItemQualityByID(row.link)
-  local c = q and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[q]
-  return c and { c.r, c.g, c.b } or nil
+  local r, g, b = U.QualityColor(q, false)
+  return r and { r, g, b } or nil
 end
 
 -- Build(window, top, bottom, barTop): the table between the run bar and
@@ -103,7 +107,7 @@ function IgnoredView.Build(window, top, bottom, barTop)
   })
   v.hint:SetPoint("RIGHT", v.search, "LEFT", -12, 0)
   v.table = UI.CreateSortTable(frame, {
-    pool = 24, rowHeight = 22, minStretch = 140,
+    pool = POOL_ROWS, rowHeight = 22, minStretch = 140,
     columns = {
       { key = "name", label = "Item", stretch = true, text = function(r) return r.name end,
         color = Quality, icon = function(r) return C_Item.GetItemIconByID(r.itemID) end },

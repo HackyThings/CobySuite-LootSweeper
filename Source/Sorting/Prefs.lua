@@ -45,8 +45,7 @@ local seams = {
   RealmName = function()
     local realm = GetNormalizedRealmName()
     if realm then return realm end
-    realm = GetRealmName()
-    return realm and (realm:gsub("[%s%-]", "")) or nil
+    return CobySuite_CobysLootSweeper.Utilities.NormalizeRealm(GetRealmName())
   end,
   MapInfo = function(uiMapID) return C_Map.GetMapInfo(uiMapID) end,
 }
@@ -108,7 +107,7 @@ function Prefs.CharKey()
   local okR, realm = Try(seams.RealmName)
   if not okN or type(name) ~= "string" or Utilities.IsSecret(name) or name == "" then return nil end
   if not okR or type(realm) ~= "string" or Utilities.IsSecret(realm) or realm == "" then return nil end
-  return name .. "-" .. realm, name .. " - " .. realm
+  return CobySuite_CobysLootSweeper.Utilities.CanonicalName(name, realm), name .. " - " .. realm
 end
 
 -- A character seen for the first time: the seed after a switch, else the

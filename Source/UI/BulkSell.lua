@@ -39,7 +39,7 @@ local PRESET_ICONS = {
   post = "Interface\\Icons\\INV_Misc_Note_02", everything = "Interface\\Icons\\INV_Misc_Bag_10",
 }
 
-local function Plural(n, one, many) return n == 1 and one or many end
+local Plural = CobySuite_CobysLootSweeper.Utilities.Plural
 
 local function CountText(c, copper)
   if c == 0 then return "none" end

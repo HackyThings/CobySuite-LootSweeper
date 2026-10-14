@@ -4,6 +4,16 @@ All notable changes to Coby's Loot Sweeper are documented here. Format follows [
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-13
+
+### Changed
+
+- Updated for World of Warcraft patch 12.1.5.
+
+### Fixed
+
+- **Ignored tab:** the list fills the window at full height instead of leaving blank space below it when the window is tall.
+
 ## [1.0.0] - 2026-10-12
 
 Coby's Loot Sweeper is out of beta.

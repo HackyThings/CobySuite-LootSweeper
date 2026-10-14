@@ -158,8 +158,5 @@ function TrackOffer._test.Toast() return toast end
 EventUtil.ContinueOnAddOnLoaded("CobysLootSweeper", function()
   local ok, err = pcall(seams.Listen, OnLink)
   if not ok then CobysLootSweeper.Debug.Log("UI", "The Track this run link can't be listened for: %s", tostring(err)) end
-  C_Timer.After(0, Build)
+  C_Timer.After(0, function() U.RunOutOfCombat(Build, "CobysLootSweeperTrackOfferBuild") end)
 end)
-local frame = CreateFrame("Frame")
-frame:RegisterEvent("PLAYER_REGEN_ENABLED")
-frame:SetScript("OnEvent", function() Build() end)

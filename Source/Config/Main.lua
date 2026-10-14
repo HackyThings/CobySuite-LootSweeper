@@ -59,12 +59,9 @@ local base = CobySuite_CobysLootSweeper.Config.New({
     ["versionCheck"] = { type = "boolean" },
   },
   debug = CobysLootSweeper.Debug,
-  onSet = function(name, old, value)
-    CobysLootSweeper.EventBus:Fire(CobysLootSweeper.Events.ConfigChanged, name, value, old)
-  end,
-  onReset = function()
-    CobysLootSweeper.EventBus:Fire(CobysLootSweeper.Events.ConfigChanged)
-  end,
+  bus = CobysLootSweeper.EventBus,
+  event = CobysLootSweeper.Events.ConfigChanged,
+  ensureTables = { "COBYS_LOOT_SWEEPER_WINDOW_STATE" },
 })
 
 -- Install onto CobysLootSweeper.Config namespace
@@ -81,10 +78,6 @@ Config.Reset         = base.Reset
 ---------------------------------------------------------------------------
 function Config.InitializeData()
   base.InitializeData()
-
-  if type(COBYS_LOOT_SWEEPER_WINDOW_STATE) ~= "table" then
-    COBYS_LOOT_SWEEPER_WINDOW_STATE = {}
-  end
 
   CobysLootSweeper.Debug.Log("CONFIG", "Config initialized")
 end

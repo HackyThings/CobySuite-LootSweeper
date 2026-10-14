@@ -57,7 +57,7 @@ local COLUMNS = {
   { key = "why", label = "Why", stretch = true, sortable = true },
 }
 
-local window, header, scrollBox, scrollBar, runButton, emptyText, emptyIcon, runPicker, runInfo
+local window, header, scrollBox, scrollBar, runButton, empty, runPicker, runInfo
 local footer = {}
 local groupFilter = nil   -- a quick-sell group shown alone while its confirmation is up
 local runFilter = nil     -- nil: every run; else a run ID (Pile.OTHER: loot with no run)
@@ -95,12 +95,6 @@ end
 -------------------------------------------------------------------------------
 -- Rows
 -------------------------------------------------------------------------------
-local function QualityColor(quality)
-  local c = quality and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality]
-  if c then return c.r, c.g, c.b end
-  return unpack(U.Colors.HIGHLIGHT_WHITE)
-end
-
 local function EnsureCells(row)
   if row.cells then return end
   row.cells = {}
@@ -120,26 +114,7 @@ local function EnsureCells(row)
 end
 
 local function LayoutCells(row)
-  local x = 0
-  for i, col in ipairs(header:GetColumns()) do
-    local text = row.cells[i]
-    if not text then break end
-    local width = col.width or 60
-    text:ClearAllPoints()
-    if col.key == "name" then
-      row.Icon:ClearAllPoints()
-      row.Icon:SetPoint("LEFT", row, "LEFT", x + 4, 0)
-      text:SetPoint("LEFT", row, "LEFT", x + ICON_SIZE + 8, 0)
-      text:SetWidth(math.max(width - ICON_SIZE - 12, 10))
-    elseif col.stretch then
-      text:SetPoint("LEFT", row, "LEFT", x + 6, 0)
-      text:SetPoint("RIGHT", row, "RIGHT", -4, 0)
-    else
-      text:SetPoint("LEFT", row, "LEFT", x + 4, 0)
-      text:SetWidth(math.max(width - 10, 10))
-    end
-    x = x + width
-  end
+  UI.LayoutRowCells(row, header, { iconKey = "name", iconSize = ICON_SIZE, inset = 10 })
 end
 
 -- The Why column's color: what kind of answer it is
@@ -156,7 +131,7 @@ local function PaintRow(row, data)
   row.data = data
   local facts = data.facts
   row.Icon:SetTexture(facts.icon or 134400)
-  local r, g, b = QualityColor(facts.quality)
+  local r, g, b = U.QualityColor(facts.quality)
   row.IconFrame:SetColorTexture(r, g, b, 0.9)
   local name = facts.name or ("item " .. tostring(facts.itemID))
   row.cells[1]:SetText(name)
@@ -445,9 +420,7 @@ local function RefreshEmpty(rows)
       text = EMPTY[currentTab]
     end
   end
-  emptyText:SetText(text or "")
-  emptyText:SetShown(text ~= nil)
-  emptyIcon:SetShown(text ~= nil)
+  empty:SetText(text)
   window.Steps:SetShown(nothing)
   -- Step 2 becomes current once the run tracks, never while the bags are
   -- still being read for its baseline (Task #235)
@@ -602,7 +575,7 @@ function UIModule.Refresh()
   CobysLootSweeper.HistoryView.SetShown(history)
   CobysLootSweeper.IgnoredView.SetShown(ignored)
   if history or ignored then
-    for _, f in ipairs({ header, scrollBox, scrollBar, emptyText, emptyIcon, window.Steps, footer.action,
+    for _, f in ipairs({ header, scrollBox, scrollBar, empty, window.Steps, footer.action,
                          footer.forget, footer.note }) do f:Hide() end
     footer.stop:SetShown(Stoppable())
     CobysLootSweeper.QuickSell.SetShown(false)
@@ -847,36 +820,20 @@ local function BuildList(headerTop)
     end,
   })
   header:SetSort(sortKey, SortDir.DESC)
-  scrollBox = CreateFrame("Frame", nil, window, "WowScrollBoxList")
+  local list = UI.CreateScrollList(window, {
+    initializeRow = InitRow, rowHeight = ROW_HEIGHT,
+    visibility = "auto",   -- no arrows over a list with nothing to scroll
+  })
+  scrollBox, scrollBar = list.box, list.bar
   scrollBox:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -2)
   scrollBox:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -PAD - SCROLLBAR_WIDTH - 4, LIST_BOTTOM)
-  local bar = CreateFrame("EventFrame", nil, window, "MinimalScrollBar")
-  bar:SetPoint("TOPLEFT", scrollBox, "TOPRIGHT", 4, 0)
-  bar:SetPoint("BOTTOMLEFT", scrollBox, "BOTTOMRIGHT", 4, 0)
-  scrollBar = bar
-  bar:SetHideIfUnscrollable(true)   -- no arrows over a list with nothing to scroll
-  local view = CreateScrollBoxListLinearView()
-  view:SetElementExtent(ROW_HEIGHT)
-  view:SetElementInitializer("Button", InitRow)
-  ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, bar, view)
   CobysLootSweeper.HistoryView.Build(window, headerTop, LIST_BOTTOM - 20, headerTop + RUN_BAR_H)
   CobysLootSweeper.IgnoredView.Build(window, headerTop, LIST_BOTTOM - 20, headerTop + RUN_BAR_H)
   -- Said over the empty list, under a picture: why nothing shows
-  emptyIcon = window:CreateTexture(nil, "ARTWORK")
-  emptyIcon:SetSize(56, 56)
-  emptyIcon:SetPoint("TOP", scrollBox, "TOP", 0, -30)
-  emptyIcon:SetTexture(CobysLootSweeper.ICON)
-  emptyIcon:SetDesaturated(true)
-  emptyIcon:SetAlpha(0.45)
-  emptyIcon:Hide()
-  emptyText = window:CreateFontString(nil, "OVERLAY", U.Fonts.BODY)
-  emptyText:SetPoint("TOP", emptyIcon, "BOTTOM", 0, -12)
-  emptyText:SetPoint("LEFT", scrollBox, "LEFT", 30, 0)
-  emptyText:SetPoint("RIGHT", scrollBox, "RIGHT", -30, 0)
-  emptyText:SetJustifyH("CENTER")
-  emptyText:SetWordWrap(true)
-  Gray(emptyText)
-  emptyText:Hide()
+  empty = UI.CreateEmptyLabel(window, {
+    icon = CobysLootSweeper.ICON,
+    points = { { "TOPLEFT", scrollBox, "TOPLEFT", 30, -30 }, { "TOPRIGHT", scrollBox, "TOPRIGHT", -30, -30 } },
+  })
   BuildSteps()
 end
 
@@ -999,15 +956,11 @@ UIModule._test = {
 local function BuildTicker()
   local ticker = CreateFrame("Frame", nil, window)
   UIModule.tickerFrame = ticker   -- the development probes time its OnUpdate (a field costs nothing per call)
-  local elapsed = 0
-  ticker:SetScript("OnUpdate", function(_, dt)
-    elapsed = elapsed + dt
-    if elapsed < 0.5 then return end
-    elapsed = 0
+  ticker:SetScript("OnUpdate", (U.Throttle(0.5, function()
     if currentTab == "vendor" and Seller().MerchantReady() and Seller().State().phase ~= "selling" then
       RefreshFooter(CurrentRows())
     end
-  end)
+  end)))
 end
 
 -- Built once the SavedVariables are in (the column widths are read at

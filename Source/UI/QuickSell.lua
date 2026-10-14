@@ -38,7 +38,7 @@ QuickSell.DEFS = {
 
 local q = { buttons = {} }
 
-local function Plural(n, one, many) return n == 1 and one or many end
+local Plural = CobySuite_CobysLootSweeper.Utilities.Plural
 
 -- The confirmation bar: over the quick buttons and the footer, so the list
 -- it describes stays in view

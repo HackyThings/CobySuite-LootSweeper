@@ -16,6 +16,7 @@
 --         (the one column that shows an icon), load(row) (called when the row is painted) },
 --     },
 --     persistence = { savedVariable = "MY_SV", path = "windows", key = "steps" },  -- optional: column widths
+--     widthsVersion = 2,        -- optional: saved widths of another version are ignored (TableHeader)
 --     sortKey = "status", ascending = true, onSort(key, ascending),
 --     onRowEnter(frame, row), onRowClick(frame, row, mouseButton),
 --     selected(row) -> true for the row painted as selected,
@@ -23,7 +24,7 @@
 --       row's whole width, in gold, with an open or closed arrow from open(row)
 --     open(row) -> whether that group is open,
 --     indent(row) -> pixels the first column's text moves right (a group's rows),
---     empty = "Nothing here",   -- a line over the table while it has no rows
+--     empty = "Nothing here",   -- a line over the table while it has no rows (UI.CreateEmptyLabel)
 --   })
 --   t:SetRows(rows)   t:Refresh()   t:SetEmptyText(text)   t.frame   t.header
 --
@@ -105,7 +106,7 @@ local function BuildHeader(t, opts)
   local p = opts.persistence
   header:Init({
     columns = columns, persistenceKey = p and p.key or nil,
-    persistence = p and { savedVariable = p.savedVariable, path = p.path } or nil,
+    persistence = p and { savedVariable = p.savedVariable, path = p.path } or nil, widthsVersion = opts.widthsVersion,
     utilities = U, headerHeight = HEADER_H, fitToWidth = true, minStretch = opts.minStretch or 120,
     onSort = function(key, dir)
       if opts.onSort then opts.onSort(key, dir == CobySuite_CobysLootSweeper.SortDir.ASC) end
@@ -117,6 +118,11 @@ local function BuildHeader(t, opts)
     header:SetSort(opts.sortKey, opts.ascending == false and CobySuite_CobysLootSweeper.SortDir.DESC or CobySuite_CobysLootSweeper.SortDir.ASC)
   end
   t.header = header
+end
+
+-- The empty line shows only while there are no rows
+local function ShowEmpty(t)
+  t.Empty:SetText(#t.rows == 0 and t.emptyText or nil)
 end
 
 -- CreateSortTable(parent, opts): the table; every frame is made here
@@ -166,13 +172,9 @@ function UI.CreateSortTable(parent, opts)
     track:SetColorTexture(c[1], c[2], c[3], 0.35)
     bar.Track = track
   end
-  t.Empty = frame:CreateFontString(nil, "OVERLAY", U.Fonts.BODY)
-  t.Empty:SetPoint("TOP", list, "TOP", 0, -24)
-  t.Empty:SetWidth(360)
-  t.Empty:SetWordWrap(true)
-  local gray = U.Colors.LABEL_GRAY
-  t.Empty:SetTextColor(gray[1], gray[2], gray[3])
-  t.Empty:SetText(opts.empty or "")
+  t.emptyText = opts.empty or ""
+  t.Empty = UI.CreateEmptyLabel(frame, { point = { "TOP", list, "TOP", 0, -24 }, width = 360 })
+  ShowEmpty(t)
   BuildHeader(t, opts)
   for i = 1, opts.pool or 30 do t.pool[i] = MakeRow(t, i) end
   frame:SetScript("OnSizeChanged", function() t:Layout() t:Refresh() end)
@@ -221,7 +223,8 @@ function Table:SetRows(rows)
 end
 
 function Table:SetEmptyText(text)
-  self.Empty:SetText(text or "")
+  self.emptyText = text or ""
+  ShowEmpty(self)
 end
 
 -- How many rows fit now (never more than the pool)
@@ -232,7 +235,7 @@ end
 
 function Table:Refresh()
   FauxScrollFrame_Update(self.scroll, #self.rows, self:Visible(), self.rowHeight)
-  self.Empty:SetShown(#self.rows == 0)
+  ShowEmpty(self)
   self:Paint()
 end
 

@@ -13,6 +13,17 @@
 -------------------------------------------------------------------------------
 CobysLootSweeper.Data.Changelog = {
   {
+    version = "1.0.1",
+    title = "Patch 12.1.5 and a fix",
+    date = "2026-10-13",
+    changed = {
+      "Updated for patch 12.1.5",
+    },
+    fixed = {
+      "Ignored tab: the list fills the window at full height",
+    },
+  },
+  {
     version = "1.0.0",
     title = "Out of beta",
     date = "2026-10-12",

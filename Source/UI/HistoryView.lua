@@ -88,26 +88,7 @@ local function Compare(a, b)
 end
 
 local function LayoutCells(row)
-  local x = 0
-  for i, col in ipairs(v.header:GetColumns()) do
-    local text = row.cells[i]
-    if not text then break end
-    local width = col.width or 60
-    text:ClearAllPoints()
-    if col.key == "name" then
-      row.Icon:ClearAllPoints()
-      row.Icon:SetPoint("LEFT", row, "LEFT", x + 4, 0)
-      text:SetPoint("LEFT", row, "LEFT", x + ICON_SIZE + 8, 0)
-      text:SetWidth(math.max(width - ICON_SIZE - 12, 10))
-    elseif col.stretch then
-      text:SetPoint("LEFT", row, "LEFT", x + 6, 0)
-      text:SetPoint("RIGHT", row, "RIGHT", -4, 0)
-    else
-      text:SetPoint("LEFT", row, "LEFT", x + 4, 0)
-      text:SetWidth(math.max(width - 10, 10))
-    end
-    x = x + width
-  end
+  UI.LayoutRowCells(row, v.header, { iconKey = "name", iconSize = ICON_SIZE, inset = 10 })
 end
 
 local function InitRow(row, rec)
@@ -136,9 +117,8 @@ local function InitRow(row, rec)
   row.Icon:SetTexture(C_Item.GetItemIconByID(rec.itemID) or 134400)
   row.cells[1]:SetText(Utilities.When(rec.at) or "")
   local quality = rec.link and C_Item.GetItemQualityByID(rec.link)
-  local c = quality and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality]
   row.cells[2]:SetText(Name(rec))
-  if c then row.cells[2]:SetTextColor(c.r, c.g, c.b) else row.cells[2]:SetTextColor(unpack(U.Colors.HIGHLIGHT_WHITE)) end
+  UI.SetQualityColor(row.cells[2], quality)
   row.cells[3]:SetText(tostring(rec.count or 1))
   local level = Level(rec)
   row.cells[4]:SetText(level and tostring(level) or "")
@@ -229,24 +209,14 @@ function HistoryView.Build(window, top, bottom, barTop)
   })
   header:SetSort(sortKey, SortDir.DESC)
   v.header = header
-  local scrollBox = CreateFrame("Frame", nil, frame, "WowScrollBoxList")
+  local list = UI.CreateScrollList(frame, { initializeRow = InitRow, rowHeight = ROW_HEIGHT, visibility = "auto" })
+  local scrollBox = list.box
   scrollBox:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -2)
   scrollBox:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -SCROLLBAR_WIDTH - 4, 0)
-  local bar = CreateFrame("EventFrame", nil, frame, "MinimalScrollBar")
-  bar:SetPoint("TOPLEFT", scrollBox, "TOPRIGHT", 4, 0)
-  bar:SetPoint("BOTTOMLEFT", scrollBox, "BOTTOMRIGHT", 4, 0)
-  bar:SetHideIfUnscrollable(true)
-  local view = CreateScrollBoxListLinearView()
-  view:SetElementExtent(ROW_HEIGHT)
-  view:SetElementInitializer("Button", InitRow)
-  ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, bar, view)
   v.scrollBox = scrollBox
-  v.empty = frame:CreateFontString(nil, "OVERLAY", U.Fonts.BODY)
-  v.empty:SetPoint("TOP", scrollBox, "TOP", 0, -40)
-  v.empty:SetPoint("LEFT", scrollBox, "LEFT", 30, 0)
-  v.empty:SetPoint("RIGHT", scrollBox, "RIGHT", -30, 0)
-  local gray = U.Colors.LABEL_GRAY
-  v.empty:SetTextColor(gray[1], gray[2], gray[3])
+  v.empty = UI.CreateEmptyLabel(frame, {
+    points = { { "TOPLEFT", scrollBox, "TOPLEFT", 30, -40 }, { "TOPRIGHT", scrollBox, "TOPRIGHT", -30, -40 } },
+  })
   v.clear = UI.CreateButton(window, {
     text = "Clear History", size = { 120, 20 }, fontSize = 10,
     point = { "BOTTOMLEFT", window, "BOTTOMLEFT", 14, 11 },
@@ -289,12 +259,8 @@ function HistoryView.Refresh()
   end
   v.scrollBox:SetDataProvider(CreateDataProvider(list), ScrollBoxConstants.RetainScrollPosition)
   v.clear:SetEnabled(CobysLootSweeper.History.HasAny())
-  if #list == 0 then
-    v.empty:SetText(search ~= "" and "Nothing matches that search." or "Nothing here yet. Loot from your runs is listed here, with what became of it.")
-    v.empty:Show()
-  else
-    v.empty:Hide()
-  end
+  v.empty:SetText(#list == 0 and (search ~= "" and "Nothing matches that search."
+    or "Nothing here yet. Loot from your runs is listed here, with what became of it.") or nil)
 end
 
 -- The picked run changed (nil: All runs)

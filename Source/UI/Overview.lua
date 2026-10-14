@@ -50,7 +50,7 @@ local STATE = {
   empty = { color = "LABEL_GRAY", texture = CobysLootSweeper.ICON, dim = true },
 }
 
-local function Plural(n, one, many) return n == 1 and one or (many or one .. "s") end
+local Plural = CobySuite_CobysLootSweeper.Utilities.Plural
 
 -------------------------------------------------------------------------------
 -- The model: what the banner says, and each tile's numbers

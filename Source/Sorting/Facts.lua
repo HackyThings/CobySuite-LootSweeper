@@ -495,7 +495,7 @@ function Facts.ClassesAllow(bag, slot)
   for _, line in ipairs(lines) do
     local text = type(line) == "table" and line.leftText
     if type(text) == "string" and not IsSecret(text) then
-      text = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+      text = CobySuite_CobysLootSweeper.Utilities.StripColors(text)
       if text:sub(1, #prefix) == prefix then
         for name in text:sub(#prefix + 1):gmatch("[^,]+") do
           if strtrim(name) == mine then return true end
@@ -562,7 +562,7 @@ function Facts.Recipe(facts, bag, slot)
     if type(line) ~= "table" or Utilities.IsSecretTable(line) then return nil end
     local text = line.leftText
     if IsSecret(text) then return nil end
-    if type(text) == "string" and text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") == known then
+    if type(text) == "string" and CobySuite_CobysLootSweeper.Utilities.StripColors(text) == known then
       return false
     end
   end
